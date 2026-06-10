@@ -1,6 +1,0 @@
-{
-  "name": "Atabaque Virtual",
-  "description": "Uma simulação interativa e imersiva de um atabaque tradicional brasileiro com síntese física de som baseada em Web Audio API, feedback visual dinâmico em Canvas e modos de aprendizado.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
