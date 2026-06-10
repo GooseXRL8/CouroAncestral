@@ -360,56 +360,28 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
     };
   }, [activeRhythmHits]);
 
-  /**
-   * Internal processor for all pointer down actions (mouse clicks or multi-touch taps).
-   * Calculates structural and physical hit metadata, emits sound & triggers visual physics.
-   */
-  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
+  const triggerHitGeneric = (
+    normX: number,
+    normY: number,
+    normDistance: number,
+    intensity: number,
+    clientXOffset?: number,
+    clientYOffset?: number
+  ) => {
+    // 1. Play sound through physical synthesizer callback
+    const { type } = onHit(normX, normY, normDistance, intensity);
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Use setPointerCapture to track drags correctly
-    try {
-      canvas.setPointerCapture(e.pointerId);
-    } catch (_) {}
-
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
+    const drumRadius = Math.min(centerX, centerY) * 0.88;
 
-    const dx = x - centerX;
-    const dy = y - centerY;
-    const clickDistance = Math.sqrt(dx * dx + dy * dy);
-    const drumRadius = Math.min(centerX, centerY) * 0.88; // outer skin edge boundaries
-
-    // Ensure click is actually inside the active drum skin head
-    if (clickDistance > drumRadius) {
-      // Outside skin boundary (maybe hit the wood, play very quiet wood click sound in audio,
-      // or ignore to encourage precision percussive hits)
-      return;
-    }
-
-    // Capture dynamic parameters
-    const normX = dx / drumRadius;
-    const normY = dy / drumRadius;
-    const normDistance = clickDistance / drumRadius;
-    const impactAngle = Math.atan2(dy, dx);
-
-    // Smart Pressure detection: Use stylus/touch pressure, or fallback to velocity/const bounds
-    let intensity = 0.85;
-    if (e.pressure > 0.0 && e.pressure !== 0.5) {
-      intensity = e.pressure;
-    } else {
-      // Minor velocity simulation depending on target focus
-      intensity = 0.75 + Math.random() * 0.2;
-    }
-
-    // 1. Play sound through physical synthesizer callback
-    const { type } = onHit(normX, normY, normDistance, intensity);
+    // Use predefined offsets or calculate from normalized layout
+    const x = clientXOffset !== undefined ? clientXOffset : (centerX + normX * drumRadius);
+    const y = clientYOffset !== undefined ? clientYOffset : (centerY + normY * drumRadius);
 
     // 2. Queue Concentric Wave Ripple Animation
     const isTum = type === 'TUM';
@@ -488,8 +460,94 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
       });
     }
 
-    // Track active interactions list
-    setActiveTouches((prev) => [...prev, { id: e.pointerId.toString(), x, y }]);
+    // Add brief active touch indicator for keydown/tap
+    const touchId = `key-${Date.now()}-${Math.random()}`;
+    setActiveTouches((prev) => [...prev, { id: touchId, x, y }]);
+    setTimeout(() => {
+      setActiveTouches((prev) => prev.filter((t) => t.id !== touchId));
+    }, 150);
+  };
+
+  // Keyboard controls listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Avoid firing on input focus
+      if (
+        document.activeElement &&
+        (document.activeElement.tagName === 'INPUT' ||
+         document.activeElement.tagName === 'TEXTAREA' ||
+         document.activeElement.getAttribute('contenteditable') === 'true')
+      ) {
+        return;
+      }
+
+      if (e.repeat) return;
+
+      const key = e.key.toLowerCase();
+      if (key === 'c' || key === 'v') {
+        const isC = key === 'c';
+        const normX = isC ? -0.1 : 0.1;
+        const normY = 0.05;
+        triggerHitGeneric(normX, normY, 0.11, 0.88);
+      } else if (key === 'n' || key === 'm') {
+        const isN = key === 'n';
+        const normX = isN ? -0.75 : 0.75;
+        const normY = 0.4;
+        triggerHitGeneric(normX, normY, 0.85, 0.9);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onHit]);
+
+  /**
+   * Internal processor for all pointer down actions (mouse clicks or multi-touch taps).
+   * Calculates structural and physical hit metadata, emits sound & triggers visual physics.
+   */
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Use setPointerCapture to track drags correctly
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch (_) {}
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    const dx = x - centerX;
+    const dy = y - centerY;
+    const clickDistance = Math.sqrt(dx * dx + dy * dy);
+    const drumRadius = Math.min(centerX, centerY) * 0.88; // outer skin edge boundaries
+
+    // Ensure click is actually inside the active drum skin head
+    if (clickDistance > drumRadius) {
+      return;
+    }
+
+    // Capture dynamic parameters
+    const normX = dx / drumRadius;
+    const normY = dy / drumRadius;
+    const normDistance = clickDistance / drumRadius;
+
+    // Smart Pressure detection: Use stylus/touch pressure, or fallback to velocity/const bounds
+    let intensity = 0.85;
+    if (e.pressure > 0.0 && e.pressure !== 0.5) {
+      intensity = e.pressure;
+    } else {
+      intensity = 0.75 + Math.random() * 0.2;
+    }
+
+    triggerHitGeneric(normX, normY, normDistance, intensity, x, y);
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -497,7 +555,6 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch (_) {}
-    setActiveTouches((prev) => prev.filter((t) => t.id !== e.pointerId.toString()));
   };
 
   const handlePointerCancel = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -505,13 +562,12 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch (_) {}
-    setActiveTouches((prev) => prev.filter((t) => t.id !== e.pointerId.toString()));
   };
 
   return (
     <div className="flex flex-col items-center justify-center w-full grow relative select-none">
       {/* Visual Instruction HUD overlay inside the drum container margins */}
-      <div className="absolute top-2 w-full flex justify-between px-6 text-[11px] font-medium tracking-tight select-none pointer-events-none z-10 font-sans">
+      <div className="absolute top-2 w-full flex justify-between px-6 text-[10px] sm:text-[11px] font-medium tracking-tight select-none pointer-events-none z-10 font-sans">
         <div className="flex items-center gap-2 bg-[#17110e]/90 border border-red-900/30 rounded-full px-3 py-1.5 text-stone-350 shadow-md backdrop-blur">
           <span className="w-2 h-2 rounded-full bg-red-650 shadow-[0_0_8px_#ef4444] animate-pulse"></span>
           BORDA: <strong className="text-red-400">TUM</strong> (Grave)
@@ -549,6 +605,23 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
             }}
           />
         ))}
+      </div>
+
+      {/* Keyboard shortcuts visual panel for PC desktop view */}
+      <div className="absolute bottom-2 hidden sm:flex gap-3 text-[10px] md:text-[11px] font-semibold text-stone-400 select-none pointer-events-none z-10 font-sans px-4 bg-[#120d0a]/85 backdrop-blur border border-[#f27d26]/12 rounded-xl py-2 shadow-lg">
+        <div className="flex items-center gap-1.5">
+          <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">C</span>
+          <span className="text-stone-500 font-light">ou</span>
+          <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">V</span>
+          <span className="text-amber-450 ml-0.5">TÁ (Centro Agudo)</span>
+        </div>
+        <div className="text-stone-700/80 font-light px-0.5">|</div>
+        <div className="flex items-center gap-1.5">
+          <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">N</span>
+          <span className="text-stone-500 font-light">ou</span>
+          <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">M</span>
+          <span className="text-red-450 ml-0.5">TUM (Borda Grave)</span>
+        </div>
       </div>
     </div>
   );
