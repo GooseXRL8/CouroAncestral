@@ -59,7 +59,7 @@ export default function SettingsPanel({
                 className={`flex-1 py-1.5 rounded-lg text-xs font-semibold uppercase hover:shadow-sm cursor-pointer transition-all ${
                   settings.tuning === t
                     ? 'bg-[#f27d26] text-[#120d0a] shadow-sm font-extrabold'
-                    : 'text-stone-350 hover:bg-[#32241c]'
+                    : 'text-stone-300 hover:bg-[#32241c]'
                 }`}
               >
                 {t}
