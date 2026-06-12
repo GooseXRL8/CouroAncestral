@@ -4,12 +4,12 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { PlayMode, AudioSettings, GameState } from './types';
+import { PlayMode, AudioSettings, GameState, RecordedHit } from './types';
 import { AtabaqueAudioEngine } from './audio';
 import AtabaqueCanvas from './components/AtabaqueCanvas';
 import GameModes from './components/GameModes';
 import SettingsPanel from './components/SettingsPanel';
-import { Music, Eye, GraduationCap, Github, Heart, Info, InfoIcon, Volume2 } from 'lucide-react';
+import { Music, GraduationCap, Heart, InfoIcon, Play, Square, Award } from 'lucide-react';
 
 /**
  * Procedural Atabaque Virtual Web Application
@@ -19,6 +19,7 @@ export default function App() {
   // 1. Core State Managers
   const [currentMode, setCurrentMode] = useState<PlayMode>('FREE');
   const [hitCount, setHitCount] = useState<number>(0);
+  const [audioActivated, setAudioActivated] = useState<boolean>(false);
   
   const [audioSettings, setAudioSettings] = useState<AudioSettings>({
     volume: 0.8,
@@ -45,8 +46,27 @@ export default function App() {
   // Track programmatically triggered drum hits (for demo / playback visual lightups)
   const [activeRhythmHits, setActiveRhythmHits] = useState<{ x: number; y: number; type: 'TUM' | 'TA'; timestamp: number }[]>([]);
 
+  // FEAT-01: Recording studio state definitions
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [isPlayingRecording, setIsPlayingRecording] = useState<boolean>(false);
+  const [recordedHits, setRecordedHits] = useState<RecordedHit[]>([]);
+  const recordStartTimeRef = useRef<number | null>(null);
+  const playbackTimersRef = useRef<NodeJS.Timeout[]>([]);
+
   // 2. Audio Engine Reference (Lazy loader)
   const audioEngineRef = useRef<AtabaqueAudioEngine | null>(null);
+
+  // BUG-04: Refs tracking current states to make handleAtabaqueHit immune to React's stale closure updates
+  const gameStateRef = useRef(gameState);
+  const currentModeRef = useRef(currentMode);
+
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
+  useEffect(() => {
+    currentModeRef.current = currentMode;
+  }, [currentMode]);
 
   // Lazy instantiate the Audio Engine on-demand to bypass initial browser autoplay blockades
   const getAudioEngine = (): AtabaqueAudioEngine => {
@@ -66,27 +86,53 @@ export default function App() {
     }
   }, [audioSettings]);
 
+  // Clean recording timeouts on unmount
+  useEffect(() => {
+    return () => {
+      playbackTimersRef.current.forEach(clearTimeout);
+    };
+  }, []);
+
   /**
    * Triggers a synthetic percussion strike at specific coordinates, counts metrics,
    * and runs gameplay validators if playing inside a challenge.
    */
-  const handleAtabaqueHit = (
+  const handleAtabaqueHit = async (
     x: number,
     y: number,
     distance: number,
     intensity: number
-  ): { type: 'TUM' | 'TA' | 'INTERMEDIATE' } => {
+  ): Promise<{ type: 'TUM' | 'TA' | 'INTERMEDIATE' }> => {
+    // SEC-02 gesture activation
+    if (!audioActivated) {
+      setAudioActivated(true);
+    }
+
     // 1. Play synthesis sound
     const engine = getAudioEngine();
-    const playbackStroke = engine.playHit(x, y, distance, intensity);
+    const playbackStroke = await engine.playHit(x, y, distance, intensity);
 
     // 2. Increment interaction statistics
     setHitCount(prev => prev + 1);
 
-    // 3. Process game challenge feedback if model expects user stroke input
-    if (currentMode === 'CHALLENGE' && gameState.challengeStatus === 'WAITING_USER') {
-      const stepIndex = gameState.userSequence.length;
-      const targetStep = gameState.challengeSequence[stepIndex];
+    const activeMode = currentModeRef.current;
+    const currentGameState = gameStateRef.current;
+
+    // FEAT-01: Record hits as user plays on the drumhead
+    if (isRecording && recordStartTimeRef.current !== null && (playbackStroke.type === 'TUM' || playbackStroke.type === 'TA')) {
+      const offset = Date.now() - recordStartTimeRef.current;
+      setRecordedHits(prev => [...prev, {
+        type: playbackStroke.type as 'TUM' | 'TA',
+        timeOffset: offset,
+        x,
+        y
+      }]);
+    }
+
+    // 3. Process game challenge feedback if model expects user stroke input (using Ref tracking)
+    if (activeMode === 'CHALLENGE' && currentGameState.challengeStatus === 'WAITING_USER') {
+      const stepIndex = currentGameState.userSequence.length;
+      const targetStep = currentGameState.challengeSequence[stepIndex];
 
       // Safe backup classification for tricky borderline "intermediate" hits
       const resolvedHit: 'TUM' | 'TA' = (playbackStroke.type === 'TUM')
@@ -98,15 +144,15 @@ export default function App() {
       const isCorrect = resolvedHit === targetStep;
 
       if (isCorrect) {
-        const updatedSeq = [...gameState.userSequence, resolvedHit];
-        const isSequenceComplete = updatedSeq.length === gameState.challengeSequence.length;
+        const updatedSeq = [...currentGameState.userSequence, resolvedHit];
+        const isSequenceComplete = updatedSeq.length === currentGameState.challengeSequence.length;
 
         if (isSequenceComplete) {
           // Level Completed! calculate combo rewards
-          const pointsEarned = gameState.currentLevel * 100 * (1 + gameState.streak);
-          const nextStreak = gameState.streak + 1;
-          const nextMax = Math.max(gameState.maxStreak, nextStreak);
-          const nextLevel = Math.min(gameState.currentLevel + 1, 7); // Cap at max levels
+          const pointsEarned = currentGameState.currentLevel * 100 * (1 + currentGameState.streak);
+          const nextStreak = currentGameState.streak + 1;
+          const nextMax = Math.max(currentGameState.maxStreak, nextStreak);
+          const nextLevel = Math.min(currentGameState.currentLevel + 1, 10); // Cap at max levels (Expanded Level 10)
 
           setGameState(prev => ({
             ...prev,
@@ -192,6 +238,58 @@ export default function App() {
     });
   };
 
+  // FEAT-01: Start current interaction recording
+  const startRecording = () => {
+    setIsRecording(true);
+    setRecordedHits([]);
+    recordStartTimeRef.current = Date.now();
+  };
+
+  // FEAT-01: Stop current interaction recording
+  const stopRecording = () => {
+    setIsRecording(false);
+  };
+
+  // FEAT-01: Trigger sequential playback of recorded strokes
+  const startPlaybackRecording = () => {
+    if (recordedHits.length === 0) return;
+    setIsPlayingRecording(true);
+
+    playbackTimersRef.current.forEach(clearTimeout);
+    playbackTimersRef.current = [];
+
+    recordedHits.forEach((hit) => {
+      const timer = setTimeout(() => {
+        handlePlayDemoHit(hit.x, hit.y, hit.type);
+      }, hit.timeOffset);
+      playbackTimersRef.current.push(timer);
+    });
+
+    // Stop light-up markers cleanly upon end of stream
+    const maxDuration = recordedHits[recordedHits.length - 1].timeOffset + 100;
+    const wrapTimer = setTimeout(() => {
+      setIsPlayingRecording(false);
+    }, maxDuration);
+    playbackTimersRef.current.push(wrapTimer);
+  };
+
+  const stopPlaybackRecording = () => {
+    playbackTimersRef.current.forEach(clearTimeout);
+    playbackTimersRef.current = [];
+    setIsPlayingRecording(false);
+  };
+
+  // FEAT-01: Export captured rhythm list into downloadable file
+  const exportRecordingAsJSON = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(recordedHits, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `atabaque_ritmo_${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
   return (
     <div className="min-h-screen bg-[#120d0a] text-stone-100 flex flex-col justify-between font-sans antialiased overflow-x-hidden">
       
@@ -213,14 +311,16 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* QA-02: Rectified color class typo bg-orange-550 to bg-orange-500 */}
             <div className="flex items-center gap-1.5 bg-[#251b14] border border-[#f27d26]/20 rounded-full px-3 py-1 text-[11px] font-semibold text-orange-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-orange-550 animate-pulse"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
               Web Audio DSP
             </div>
             <button
               onClick={() => {
                 const engine = getAudioEngine();
                 engine.resume();
+                setAudioActivated(true);
               }}
               className="text-xs bg-orange-600 hover:bg-orange-700 text-black font-extrabold px-4 py-1.5 rounded-full transition-all cursor-pointer shadow-[0_0_12px_rgba(242,125,38,0.4)] active:scale-[0.98]"
             >
@@ -234,7 +334,7 @@ export default function App() {
       <main className="grow py-6 px-4 sm:px-6 w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* LEFT Performing Instrument Deck (Col span: 7) */}
-        <section className="lg:col-span-7 xl:col-span-7 bg-[#1c1410] border border-[#2d221a] rounded-2xl p-4 sm:p-6 shadow-[inset_0_4px_30px_rgba(0,0,0,0.5)] flex flex-col relative overflow-hidden h-auto min-h-[460px] sm:min-h-[560px] lg:h-[70vh]">
+        <section className="lg:col-span-12 xl:col-span-7 bg-[#1c1410] border border-[#2d221a] rounded-2xl p-4 sm:p-6 shadow-[inset_0_4px_30px_rgba(0,0,0,0.5)] flex flex-col relative overflow-hidden h-auto min-h-[460px] sm:min-h-[560px] lg:h-[70vh]">
           {/* Subtle geometric technical grid watermarks */}
           <div className="absolute inset-0 opacity-[0.02] pointer-events-none bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
           
@@ -250,15 +350,16 @@ export default function App() {
             </div>
           </div>
 
-          {/* Interactive Canvas Rendering layer */}
+          {/* Interactive Canvas Rendering layer (SEC-02: Pass audioActivated prop) */}
           <AtabaqueCanvas 
             onHit={handleAtabaqueHit}
             activeRhythmHits={activeRhythmHits}
+            audioActivated={audioActivated}
           />
         </section>
 
         {/* RIGHT Specialised Controls Stack (Col span: 5) */}
-        <div className="lg:col-span-5 xl:col-span-5 flex flex-col gap-6 w-full">
+        <div className="lg:col-span-12 xl:col-span-5 flex flex-col gap-6 w-full">
           
           {/* Playback Controls & Rhythm Gamification Panel */}
           <section className="bg-[#1a1411] border border-[#2d221a] rounded-2xl p-0.5 shadow-md">
@@ -269,6 +370,81 @@ export default function App() {
               gameState={gameState}
               setGameState={setGameState}
             />
+          </section>
+
+          {/* FEAT-01: Sleek Recording Studio Card */}
+          <section className="bg-[#16100d] border border-[#2d221a] rounded-2xl p-4 sm:p-5 shadow-inner text-left flex flex-col gap-3.5 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-orange-600/5 rounded-full blur-xl pointer-events-none"></div>
+            
+            <div className="flex justify-between items-center border-b border-[#2d221a]/60 pb-2">
+              <h3 className="text-xs font-bold text-orange-500 uppercase tracking-widest flex items-center gap-2">
+                <Music className="w-4 h-4 text-orange-400" />
+                Estúdio de Gravação
+              </h3>
+              {isRecording && (
+                <span className="flex items-center gap-1.5 text-[10px] text-red-500 font-extrabold animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-650 shadow-[0_0_8px_#ef4444]"></span> GRAVANDO
+                </span>
+              )}
+            </div>
+
+            <p className="text-xs text-stone-300 leading-normal">
+              Grave sua própria polirritmia no couro, assista ao playback automatizado ou exporte o mapa rítmico como arquivo JSON.
+            </p>
+
+            <div className="flex gap-2.5 flex-wrap">
+              {!isRecording ? (
+                <button
+                  onClick={startRecording}
+                  disabled={isPlayingRecording}
+                  className="flex-1 min-w-[120px] py-2 bg-red-950/20 hover:bg-red-900/40 text-red-100 hover:text-red-300 border border-red-900/30 rounded-xl text-xs font-bold transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                >
+                  <span className="w-2 h-2 rounded-full bg-red-500"></span> Gravar
+                </button>
+              ) : (
+                <button
+                  onClick={stopRecording}
+                  className="flex-1 min-w-[120px] py-2 bg-stone-900 hover:bg-stone-850 text-stone-100 border border-stone-800 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                >
+                  <Square className="w-3 h-3 fill-current text-white" /> Parar
+                </button>
+              )}
+
+              {recordedHits.length > 0 && (
+                <>
+                  {!isPlayingRecording ? (
+                    <button
+                      onClick={startPlaybackRecording}
+                      disabled={isRecording}
+                      className="flex-1 min-w-[140px] py-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:brightness-110 text-black rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider shadow"
+                    >
+                      <Play className="w-3 h-3 fill-current text-black" /> Ouvir ({recordedHits.length})
+                    </button>
+                  ) : (
+                    <button
+                      onClick={stopPlaybackRecording}
+                      className="flex-1 min-w-[140px] py-2 bg-stone-900 hover:bg-stone-850 text-stone-100 border border-stone-800 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                    >
+                      <Square className="w-3 h-3 fill-stone-100" /> Parar Reprodução
+                    </button>
+                  )}
+
+                  <button
+                    onClick={exportRecordingAsJSON}
+                    className="px-3.5 py-2 bg-[#251b14] hover:bg-[#32241c] text-stone-300 border border-[#3c2b20] rounded-xl text-xs font-semibold hover:text-white transition-all cursor-pointer flex items-center justify-center gap-1"
+                    title="Exportar JSON para o computador"
+                  >
+                    Exportar JSON
+                  </button>
+                </>
+              )}
+            </div>
+
+            {recordedHits.length > 0 && !isRecording && (
+              <div className="text-[10px] font-mono text-stone-500 leading-tight">
+                Lista Rítmica: <span className="text-[#f27d26]">{recordedHits.map(h => h.type).slice(0, 12).join(' → ')}{recordedHits.length > 12 ? '...' : ''}</span>
+              </div>
+            )}
           </section>
 
           {/* Advanced Audio DSP variables, meters and volume dials */}
