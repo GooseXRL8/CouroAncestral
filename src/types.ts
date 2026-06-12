@@ -12,20 +12,31 @@ export interface AudioSettings {
   tuning: 'RUM' | 'RUMPI' | 'LE'; // traditional sizes (Rum = deep, Rumpi = medium, Lê = high-pitched)
 }
 
-export interface HitEvent {
-  id: string;
-  x: number;      // normalized -1 to 1 based on center of drum
-  y: number;      // normalized -1 to 1 based on center of drum
-  distance: number; // 0 (center) to 1 (edge)
-  angle: number;    // angle of impact in radians
-  intensity: number; // velocity/pressure 0 to 1
-  timestamp: number;
-  type: 'TUM' | 'TA' | 'INTERMEDIATE';
+export interface AudioEnvelope {
+  attack: number;
+  decay: number;
+  sustain: number;
+  release: number;
 }
 
-export interface RhythmStep {
-  type: 'TUM' | 'TA' | 'SILENCE';
-  delay: number; // offset in milliseconds from the start or prior step
+export interface AudioTimbre {
+  brightness: number;
+  body: number;
+}
+
+export interface AudioParameters {
+  t_stable: number;
+  frequencies: number[];
+  amplitudes: number[];
+  envelope: AudioEnvelope;
+  timbre: AudioTimbre;
+}
+
+export interface RecordedHit {
+  type: 'TUM' | 'TA';
+  timeOffset: number; // ms offset relative to recording startup
+  x: number;
+  y: number;
 }
 
 export interface ChallengeSequence {
