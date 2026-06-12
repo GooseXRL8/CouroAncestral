@@ -3,12 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useRef, useEffect, useState, useTransition } from 'react';
-import { HitEvent } from '../types';
+import React, { useRef, useEffect, useState } from 'react';
+import { DRUM_RADIUS_FACTOR } from '../constants';
 
 interface AtabaqueCanvasProps {
-  onHit: (x: number, y: number, distance: number, intensity: number) => { type: 'TUM' | 'TA' | 'INTERMEDIATE' };
+  onHit: (
+    x: number,
+    y: number,
+    distance: number,
+    intensity: number
+  ) => Promise<{ type: 'TUM' | 'TA' | 'INTERMEDIATE' }> | { type: 'TUM' | 'TA' | 'INTERMEDIATE' };
   activeRhythmHits?: { x: number; y: number; type: 'TUM' | 'TA'; timestamp: number }[];
+  audioActivated?: boolean;
 }
 
 interface ActiveRipple {
@@ -36,20 +42,28 @@ interface InteractiveSpark {
   decay: number;
 }
 
-export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: AtabaqueCanvasProps) {
+export default function AtabaqueCanvas({
+  onHit,
+  activeRhythmHits = [],
+  audioActivated = false
+}: AtabaqueCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Animation references
   const ripplesRef = useRef<ActiveRipple[]>([]);
   const sparksRef = useRef<InteractiveSpark[]>([]);
-  
-  // Vibration offsets for the whole drum head
   const drumVibrationRef = useRef({ amplitude: 0, frequency: 0, decay: 0.9, phase: 0 });
-  const lastActiveHitsRef = useRef<string[]>([]);
 
-  // Track coordinates for visual pointer feedback
-  const [activeTouches, setActiveTouches] = useState<{ id: string; x: number; y: number }[]>([]);
+  // Throttling and dynamic performance scaling references
+  const lastFrameTimeRef = useRef(0);
+  const frameCountRef = useRef(0);
+  const fpsTimerRef = useRef(0);
+  const rippleSegmentsRef = useRef(120);
+
+  // Canvas visual text indicators flying up and touches ring ref to completely avoid React state updates
+  const textIndicatorsRef = useRef<{ id: string; x: number; y: number; text: string; color: string; opacity: number; scale: number }[]>([]);
+  const activeTouchesRef = useRef<{ id: string; x: number; y: number; timestamp: number }[]>([]);
 
   // Build high-performance canvas size on resize
   useEffect(() => {
@@ -103,13 +117,35 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
         return;
       }
 
-      // Read real sizes
+      // PERF-01: Throttling to target ~60 FPS under ProMotion/high refresh monitors
+      const nowTime = performance.now();
+      const elapsed = nowTime - lastFrameTimeRef.current;
+      if (elapsed < 16.6) {
+        animationFrameId = requestAnimationFrame(render);
+        return;
+      }
+      lastFrameTimeRef.current = nowTime;
+
+      // Track FPS dynamically for adaptive scaling
+      frameCountRef.current++;
+      if (nowTime - fpsTimerRef.current >= 1000) {
+        const currentFps = (frameCountRef.current * 1000) / (nowTime - fpsTimerRef.current);
+        if (currentFps < 45) {
+          rippleSegmentsRef.current = 60; // downscale ripple complexity
+        } else {
+          rippleSegmentsRef.current = 120; // restore high resolution
+        }
+        frameCountRef.current = 0;
+        fpsTimerRef.current = nowTime;
+      }
+
+      // Read Web Audio parameters
       const dpr = window.devicePixelRatio || 1;
       const width = canvas.width / dpr;
       const height = canvas.height / dpr;
       const centerX = width / 2;
       const centerY = height / 2;
-      const drumRadius = Math.min(width, height) * 0.44;
+      const drumRadius = Math.min(width, height) * DRUM_RADIUS_FACTOR;
 
       // Update membrane oscillation physical model
       const vibe = drumVibrationRef.current;
@@ -161,7 +197,6 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
       ctx.stroke();
 
       // Draw traditional Tuning Wedges / Ropes (Cunhas e cordas tensionadoras)
-      // Placed around the circle (classic afro-brazilian atabaque layout)
       const wedgeCount = 8;
       for (let i = 0; i < wedgeCount; i++) {
         const angle = (i / wedgeCount) * Math.PI * 2;
@@ -185,7 +220,6 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
         ctx.fill();
         ctx.fillStyle = '#5c3d24';
         ctx.beginPath();
-        // Point drawing outward representing the wedge
         ctx.moveTo(outerX, outerY);
         ctx.lineTo(outerX + Math.cos(angle) * 16, outerY + Math.sin(angle) * 16);
         ctx.lineTo(outerX + Math.cos(angle + 0.4) * 8, outerY + Math.sin(angle + 0.4) * 8);
@@ -196,7 +230,6 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
       // -------------------------------------------------------------
       // DRAW COURO NATURAL (The interactive leather animal drum skin)
       // -------------------------------------------------------------
-      // Dynamic membrane swelling vibration added directly to the skin radius
       const currentRadius = drumRadius + Math.sin(vibe.phase) * vibe.amplitude;
 
       ctx.save();
@@ -204,12 +237,11 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
       ctx.arc(centerX, centerY, currentRadius, 0, Math.PI * 2);
       ctx.clip(); // Keep leather gradients inside boundaries
 
-      // Canvas gradient to create high fidelity depth
       const leatherGrad = ctx.createRadialGradient(
         centerX, centerY, currentRadius * 0.1,
         centerX, centerY, currentRadius
       );
-      // Beautiful artisanal natural cream animal skin tones (light center, darker near edges)
+      // Natural cream leather colors
       leatherGrad.addColorStop(0.0, '#f9f3eb'); // Crisp light center
       leatherGrad.addColorStop(0.3, '#f2e6d5'); // Cream tones
       leatherGrad.addColorStop(0.65, '#dfcca8'); // Golden/Amber leather transition
@@ -219,8 +251,7 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
       ctx.fillStyle = leatherGrad;
       ctx.fill();
 
-      // Add actual high-fidelity leather organic textures (hair grain and micro blemishes)
-      // Procedurally rendered using a noise seed overlay for incredible natural look without weight
+      // Add high-fidelity leather organic textures
       ctx.fillStyle = 'rgba(110, 80, 50, 0.05)';
       for (let i = 0; i < 4; i++) {
         ctx.beginPath();
@@ -240,7 +271,7 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
         ctx.stroke();
       }
 
-      // Subtle radial sunburst lines representing leather hide fibers extending to strings
+      // Hide fiber lines
       ctx.strokeStyle = 'rgba(100, 60, 30, 0.04)';
       ctx.lineWidth = 1;
       for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 16) {
@@ -253,7 +284,6 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
       ctx.restore();
 
       // Inner leather crease edge shadow
-      ctx.shadowBlur = 0;
       ctx.strokeStyle = '#8c6c40';
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -264,21 +294,19 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
       // DRAW EXPANDING RIPPLES & CONCENTRIC IMPACT WAVES
       // -------------------------------------------------------------
       const ripples = ripplesRef.current;
+      const segments = rippleSegmentsRef.current; // dynamically scaled for performance
       for (let i = ripples.length - 1; i >= 0; i--) {
         const r = ripples[i];
         
-        // Expand radius
         r.radius += r.speed;
-        r.opacity -= 0.025; // fade away
+        r.opacity -= 0.025; 
 
         if (r.opacity <= 0) {
           ripples.splice(i, 1);
           continue;
         }
 
-        // Apply physical wavy wobble (vibration) along the ripple path
         ctx.beginPath();
-        const segments = 120;
         for (let s = 0; s <= segments; s++) {
           const angle = (s / segments) * Math.PI * 2;
           const distOffset = Math.sin(angle * 8 + r.radius * 0.1) * r.vibrationAmp * r.opacity;
@@ -297,7 +325,7 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
         ctx.globalAlpha = r.opacity;
         ctx.lineWidth = r.lineWidth * (0.3 + r.opacity * 0.7);
         ctx.stroke();
-        ctx.globalAlpha = 1.0; // Reset alpha
+        ctx.globalAlpha = 1.0;
       }
 
       // -------------------------------------------------------------
@@ -324,7 +352,7 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
       }
 
       // -------------------------------------------------------------
-      // RENDER AUTO-PLAY DEMO HITS (If triggered in simulation)
+      // RENDER AUTO-PLAY DEMO HITS
       // -------------------------------------------------------------
       if (activeRhythmHits && activeRhythmHits.length > 0) {
         const now = Date.now();
@@ -334,7 +362,6 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
             const hitAbsX = centerX + hit.x * drumRadius;
             const hitAbsY = centerY + hit.y * drumRadius;
             
-            // Draw a ghost glowing mallet indicator on the canvas
             ctx.strokeStyle = hit.type === 'TUM' ? 'rgba(239, 68, 68, 0.8)' : 'rgba(234, 179, 8, 0.8)';
             ctx.lineWidth = 3;
             ctx.beginPath();
@@ -349,10 +376,60 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
         });
       }
 
+      // -------------------------------------------------------------
+      // RENDER ACTIVE TOUCH GLOW RINGS (BUG-05 avoidance of React render state)
+      // -------------------------------------------------------------
+      const touches = activeTouchesRef.current;
+      const now = Date.now();
+      ctx.save();
+      for (let i = touches.length - 1; i >= 0; i--) {
+        const t = touches[i];
+        const age = now - t.timestamp;
+        if (age > 200) {
+          touches.splice(i, 1);
+          continue;
+        }
+        const alpha = 1.0 - (age / 200);
+        const radius = 10 + (age / 200) * 45; 
+        
+        ctx.strokeStyle = `rgba(251, 191, 36, ${alpha * 0.45})`;
+        ctx.fillStyle = `rgba(251, 191, 36, ${alpha * 0.12})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // -------------------------------------------------------------
+      // RENDER FLYING ACCURATE TEXT INDICATORS (UX-01 visual feedback)
+      // -------------------------------------------------------------
+      const indicators = textIndicatorsRef.current;
+      for (let i = indicators.length - 1; i >= 0; i--) {
+        const ind = indicators[i];
+        ind.y -= 1.4; // float vertical up
+        ind.opacity -= 0.035; // fade speed
+
+        if (ind.opacity <= 0) {
+          indicators.splice(i, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.font = `bold ${Math.round(15 * ind.scale)}px "Space Grotesk"`;
+        ctx.fillStyle = ind.color;
+        ctx.globalAlpha = ind.opacity;
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 6;
+        ctx.textAlign = 'center';
+        ctx.fillText(ind.text, ind.x, ind.y);
+        ctx.restore();
+      }
+
       animationFrameId = requestAnimationFrame(render);
     };
 
-    // Begin looping
     render();
 
     return () => {
@@ -360,7 +437,7 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
     };
   }, [activeRhythmHits]);
 
-  const triggerHitGeneric = (
+  const triggerHitGeneric = async (
     normX: number,
     normY: number,
     normDistance: number,
@@ -369,7 +446,8 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
     clientYOffset?: number
   ) => {
     // 1. Play sound through physical synthesizer callback
-    const { type } = onHit(normX, normY, normDistance, intensity);
+    const res = await onHit(normX, normY, normDistance, intensity);
+    const type = res.type;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -377,7 +455,7 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
     const rect = canvas.getBoundingClientRect();
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
-    const drumRadius = Math.min(centerX, centerY) * 0.88;
+    const drumRadius = Math.min(centerX, centerY) * DRUM_RADIUS_FACTOR;
 
     // Use predefined offsets or calculate from normalized layout
     const x = clientXOffset !== undefined ? clientXOffset : (centerX + normX * drumRadius);
@@ -395,7 +473,7 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
     if (isTum) {
       rippleColor = 'rgba(239, 68, 68, 0.85)'; // Crimson Red for deep TUM bass
       maxRadius = 60 + intensity * 10 
-        + (drumVibrationRef.current.amplitude * 2); // swell depending on active vibration
+        + (drumVibrationRef.current.amplitude * 2); 
       waveSparks = 8;
       sparkColor = '#dc2626';
 
@@ -409,7 +487,7 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
     } else if (isTa) {
       rippleColor = 'rgba(234, 179, 8, 0.9)'; // Bright Golden Yellow for high-pitch TA
       maxRadius = 30 + intensity * 40;
-      waveSparks = 14; // more crack/impact sparkle
+      waveSparks = 14; 
       sparkColor = '#eab308';
 
       // Set whole-drum membrane oscillation model
@@ -420,7 +498,6 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
         phase: 0
       };
     } else {
-      // Intermediate hybrid
       drumVibrationRef.current = {
         amplitude: 5 + intensity * 7,
         frequency: 0.32,
@@ -460,12 +537,32 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
       });
     }
 
-    // Add brief active touch indicator for keydown/tap
-    const touchId = `key-${Date.now()}-${Math.random()}`;
-    setActiveTouches((prev) => [...prev, { id: touchId, x, y }]);
-    setTimeout(() => {
-      setActiveTouches((prev) => prev.filter((t) => t.id !== touchId));
-    }, 150);
+    // Add active touch indicator for canvas glow drawing (BUG-05 avoidance)
+    activeTouchesRef.current.push({
+      id: `touched-${Date.now()}-${Math.random()}`,
+      x,
+      y,
+      timestamp: Date.now()
+    });
+
+    // UX-01: Add flying text indicator directly to the canvas thread
+    const indicatorColor = isTum ? '#f87171' : isTa ? '#fbbf24' : '#fb923c';
+    textIndicatorsRef.current.push({
+      id: `flying-${Date.now()}-${Math.random()}`,
+      x,
+      y: y - 15,
+      text: type,
+      color: indicatorColor,
+      opacity: 1.0,
+      scale: intensity * 1.15
+    });
+
+    // UX-01: Device Haptic Vibration API
+    if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+      try {
+        window.navigator.vibrate(isTum ? [35] : [15]);
+      } catch (_) { /* ignore */ }
+    }
   };
 
   // Keyboard controls listener
@@ -484,16 +581,15 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
       if (e.repeat) return;
 
       const key = e.key.toLowerCase();
-      if (key === 'c' || key === 'v') {
-        const isC = key === 'c';
-        const normX = isC ? -0.1 : 0.1;
-        const normY = 0.05;
-        triggerHitGeneric(normX, normY, 0.11, 0.88);
-      } else if (key === 'n' || key === 'm') {
-        const isN = key === 'n';
-        const normX = isN ? -0.75 : 0.75;
-        const normY = 0.4;
-        triggerHitGeneric(normX, normY, 0.85, 0.9);
+      
+      // UX-03: support customizable keyboard controls (loaded from LocalStorage)
+      const cachedTaKeys = (localStorage.getItem('key_ta') || 'c,v').split(',');
+      const cachedTumKeys = (localStorage.getItem('key_tum') || 'n,m').split(',');
+
+      if (cachedTaKeys.includes(key)) {
+        triggerHitGeneric(0.0, 0.0, 0.15, 0.9);
+      } else if (cachedTumKeys.includes(key)) {
+        triggerHitGeneric(0.0, 0.85, 0.85, 0.95);
       }
     };
 
@@ -512,7 +608,6 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Use setPointerCapture to track drags correctly
     try {
       canvas.setPointerCapture(e.pointerId);
     } catch (_) {}
@@ -529,17 +624,16 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
     const clickDistance = Math.sqrt(dx * dx + dy * dy);
     const drumRadius = Math.min(centerX, centerY) * 0.88; // outer skin edge boundaries
 
-    // Ensure click is actually inside the active drum skin head
+    // Ensure click is inside the active drum skin head
     if (clickDistance > drumRadius) {
       return;
     }
 
-    // Capture dynamic parameters
     const normX = dx / drumRadius;
     const normY = dy / drumRadius;
     const normDistance = clickDistance / drumRadius;
 
-    // Smart Pressure detection: Use stylus/touch pressure, or fallback to velocity/const bounds
+    // Smart Pressure detection
     let intensity = 0.85;
     if (e.pressure > 0.0 && e.pressure !== 0.5) {
       intensity = e.pressure;
@@ -569,14 +663,28 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
       {/* Visual Instruction HUD overlay inside the drum container margins */}
       <div className="absolute top-2 w-full flex justify-between px-6 text-[10px] sm:text-[11px] font-medium tracking-tight select-none pointer-events-none z-10 font-sans">
         <div className="flex items-center gap-2 bg-[#17110e]/90 border border-red-900/30 rounded-full px-3 py-1.5 text-stone-350 shadow-md backdrop-blur">
-          <span className="w-2 h-2 rounded-full bg-red-650 shadow-[0_0_8px_#ef4444] animate-pulse"></span>
+          <span className="w-1.5 h-1.5 rounded-full bg-red-650 shadow-[0_0_8px_#ef4444] animate-pulse"></span>
           BORDA: <strong className="text-red-400">TUM</strong> (Grave)
         </div>
         <div className="flex items-center gap-2 bg-[#17110e]/90 border border-amber-900/30 rounded-full px-3 py-1.5 text-stone-350 shadow-md backdrop-blur">
-          <span className="w-2 h-2 rounded-full bg-amber-550 shadow-[0_0_8px_#f59e0b] animate-pulse"></span>
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-550 shadow-[0_0_8px_#f59e0b] animate-pulse"></span>
           CENTRO: <strong className="text-amber-400 font-bold">TÁ</strong> (Agudo)
         </div>
       </div>
+
+      {/* SEC-02: Translucent welcome banner offering instant haptic and gesture explanation */}
+      {!audioActivated && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-40 px-4">
+          <div className="bg-[#1a1310]/95 border border-[#f27d26]/30 rounded-2xl p-4 sm:p-5 max-w-[320px] text-center shadow-2xl backdrop-blur-md animate-pulse leading-relaxed">
+            <p className="text-[#f27d26] text-xs font-bold uppercase tracking-[0.2em] mb-1">
+              Ativação do Som
+            </p>
+            <p className="text-[11px] text-stone-300 leading-normal">
+              Toque na pele do tambor ou use o teclado (<strong className="text-[#f27d26] font-mono">C, V</strong> e <strong className="text-red-400 font-mono">N, M</strong>) para ouvir os harmônicos tradicionais!
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Main Canvas Frame */}
       <div 
@@ -589,22 +697,12 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
+          onTouchStart={(e) => {
+            // Secure direct tap registration on Safari and mobile devices
+            if (e.cancelable) e.preventDefault();
+          }}
           className="cursor-crosshair bg-transparent select-none touch-none drop-shadow-2xl active:scale-[0.99] transition-transform duration-75"
         />
-        
-        {/* Glowing pressure indicators mapped from current interactions */}
-        {activeTouches.map((t) => (
-          <div
-            key={t.id}
-            className="absolute rounded-full pointer-events-none bg-yellow-300/10 border border-yellow-400/40 animate-ping"
-            style={{
-              left: `${t.x - 20}px`,
-              top: `${t.y - 20}px`,
-              width: '40px',
-              height: '40px',
-            }}
-          />
-        ))}
       </div>
 
       {/* Keyboard shortcuts visual panel for PC desktop view */}
