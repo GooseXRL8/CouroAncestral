@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useRef, useEffect, useState, useTransition, useCallback } from 'react';
-import { HitEvent } from '../types';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 
 interface AtabaqueCanvasProps {
-  onHit: (x: number, y: number, distance: number, intensity: number) => { type: 'TUM' | 'TA' | 'INTERMEDIATE' };
+  onHit: (x: number, y: number, distance: number, intensity: number) => { type: 'TUM' | 'TA' | 'INTERMEDIATE' } | Promise<{ type: 'TUM' | 'TA' | 'INTERMEDIATE' }>;
   activeRhythmHits?: { x: number; y: number; type: 'TUM' | 'TA'; timestamp: number }[];
+  audioActivated: boolean;
 }
 
 interface ActiveRipple {
@@ -360,7 +360,7 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
     };
   }, [activeRhythmHits]);
 
-  const triggerHitGeneric = (
+  const triggerHitGeneric = async (
     normX: number,
     normY: number,
     normDistance: number,
@@ -369,7 +369,7 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
     clientYOffset?: number
   ) => {
     // 1. Play sound through physical synthesizer callback
-    const { type } = onHit(normX, normY, normDistance, intensity);
+    const { type } = await onHit(normX, normY, normDistance, intensity);
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -630,12 +630,12 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
     <div className="flex flex-col items-center justify-center w-full grow relative select-none">
       {/* Visual Instruction HUD overlay inside the drum container margins */}
       <div className="absolute top-2 w-full flex justify-between px-6 text-[10px] sm:text-[11px] font-medium tracking-tight select-none pointer-events-none z-10 font-sans">
-        <div className="flex items-center gap-2 bg-[#17110e]/90 border border-red-900/30 rounded-full px-3 py-1.5 text-stone-350 shadow-md backdrop-blur">
-          <span className="w-2 h-2 rounded-full bg-red-650 shadow-[0_0_8px_#ef4444] animate-pulse"></span>
+        <div className="flex items-center gap-2 bg-[#17110e]/90 border border-red-900/30 rounded-full px-3 py-1.5 text-stone-300 shadow-md backdrop-blur">
+          <span className="w-2 h-2 rounded-full bg-red-600 shadow-[0_0_8px_#ef4444] animate-pulse"></span>
           BORDA: <strong className="text-red-400">TUM</strong> (Grave)
         </div>
-        <div className="flex items-center gap-2 bg-[#17110e]/90 border border-amber-900/30 rounded-full px-3 py-1.5 text-stone-350 shadow-md backdrop-blur">
-          <span className="w-2 h-2 rounded-full bg-amber-550 shadow-[0_0_8px_#f59e0b] animate-pulse"></span>
+                <div className="flex items-center gap-2 bg-[#17110e]/90 border border-amber-900/30 rounded-full px-3 py-1.5 text-stone-300 shadow-md backdrop-blur">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_#f59e0b] animate-pulse"></span>
           CENTRO: <strong className="text-amber-400 font-bold">TÁ</strong> (Agudo)
         </div>
       </div>
@@ -692,15 +692,15 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
         <div className="flex items-center gap-1.5">
           <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">F</span>
           <span className="text-stone-500 font-light">ou</span>
-          <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">J</span>
-          <span className="text-amber-450 ml-0.5">TÁ (Centro Agudo)</span>
+          <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">V</span>
+          <span className="text-amber-400 ml-0.5">TÁ (Centro Agudo)</span>
         </div>
         <div className="text-stone-700/80 font-light px-0.5">|</div>
         <div className="flex items-center gap-1.5">
           <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">C</span>
           <span className="text-stone-500 font-light">ou</span>
           <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">M</span>
-          <span className="text-red-450 ml-0.5">TUM (Borda Grave)</span>
+          <span className="text-red-400 ml-0.5">TUM (Borda Grave)</span>
         </div>
       </div>
     </div>

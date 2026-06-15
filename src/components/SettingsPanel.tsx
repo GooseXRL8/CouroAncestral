@@ -164,12 +164,17 @@ export default function SettingsPanel({
             <input
               type="range"
               min="0"
-              max="1"
+              max="2"
               step="0.05"
               value={settings.volume}
               onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
               className="grow accent-[#f27d26] cursor-pointer h-1.5 bg-[#130d0a] border border-stone-800 rounded-lg appearance-none"
             />
+          </div>
+          <div className="flex justify-between text-[9px] text-[#f27d26]/80 font-mono">
+            <span>0%</span>
+            <span>100%</span>
+            <span>200%</span>
           </div>
         </div>
 

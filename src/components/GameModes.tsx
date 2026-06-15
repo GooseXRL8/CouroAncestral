@@ -181,7 +181,7 @@ const ChallengeHUD = React.memo(({ score, streak, maxStreak }: { score: number; 
 const ChallengePresetsList = React.memo(({ currentLevel, onSelectLevel }: { currentLevel: number; onSelectLevel: (level: number) => void }) => (
   <div className="flex flex-col gap-1.5">
     <span className="text-[10px] uppercase tracking-wider font-bold text-stone-400 text-left">Selecione o Grau:</span>
-    <div className="flex overflow-x-auto gap-1 pb-1 scrollbar-thin scrollbar-thumb-orange-850/45">
+    <div className="flex overflow-x-auto gap-1 pb-1 scrollbar-thin scrollbar-thumb-orange-800/45">
       {CHALLENGE_PRESETS.map((preset, idx) => {
         const isSelected = currentLevel === idx + 1;
         return (
@@ -231,7 +231,7 @@ const RhythmStepsGrid = React.memo(({
         } else if (isHitPerfect) {
           nodeStyle = 'bg-emerald-600 text-black border-emerald-500 font-extrabold shadow-[0_0_10px_rgba(16,185,129,0.4)]';
         } else if (isHitFailed) {
-          nodeStyle = 'bg-red-600 text-stone-150 border-red-500 font-extrabold shadow-[0_0_10px_rgba(239,68,68,0.4)]';
+          nodeStyle = 'bg-red-600 text-stone-100 border-red-500 font-extrabold shadow-[0_0_10px_rgba(239,68,68,0.4)]';
         } else if (userHit !== undefined) {
           nodeStyle = 'bg-orange-500 text-black border-orange-400';
         }
@@ -260,7 +260,7 @@ const RhythmStepsGrid = React.memo(({
         feedbackType === 'success' 
           ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900/40'
           : feedbackType === 'error'
-          ? 'bg-red-950/40 text-red-400 border-rose-900/30'
+          ? 'bg-red-900/40 text-red-400 border-rose-900/30'
           : 'bg-[#1c1410] text-orange-400 border-[#2d221a]'
       }`}>
         {feedbackType === 'success' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
@@ -464,7 +464,7 @@ export default function GameModes({
           className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
             currentMode === 'FREE'
               ? 'bg-[#f27d26] text-[#120d0a] shadow-[0_0_12px_rgba(242,125,38,0.4)] font-bold'
-              : 'text-stone-400 hover:bg-[#2d2018] hover:text-stone-150'
+              : 'text-stone-400 hover:bg-[#2d2018] hover:text-stone-100'
           }`}
         >
           <Sparkles className="w-3.5 h-3.5" />
@@ -480,7 +480,7 @@ export default function GameModes({
           className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
             currentMode === 'EXAMPLE'
               ? 'bg-[#f27d26] text-[#120d0a] shadow-[0_0_12px_rgba(242,125,38,0.4)] font-bold'
-              : 'text-stone-400 hover:bg-[#2d2018] hover:text-stone-150'
+              : 'text-stone-400 hover:bg-[#2d2018] hover:text-stone-100'
           }`}
         >
           <BookOpen className="w-3.5 h-3.5" />
@@ -493,7 +493,7 @@ export default function GameModes({
           className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
             currentMode === 'CHALLENGE'
               ? 'bg-[#f27d26] text-[#120d0a] shadow-[0_0_12px_rgba(242,125,38,0.4)] font-bold'
-              : 'text-stone-400 hover:bg-[#2d2018] hover:text-stone-150'
+              : 'text-stone-400 hover:bg-[#2d2018] hover:text-stone-100'
           }`}
         >
           <Award className="w-3.5 h-3.5" />
@@ -546,7 +546,7 @@ export default function GameModes({
               onClick={toggleDemoPlay}
               className={`w-full sm:w-auto shrink-0 px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all duration-200 shadow-md ${
                 demoPlaying
-                  ? 'bg-red-650 hover:bg-red-700 text-stone-100'
+                  ? 'bg-red-600 hover:bg-red-700 text-stone-100'
                   : 'bg-[#f27d26] hover:bg-orange-600 text-black'
               }`}
             >
