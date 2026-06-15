@@ -215,18 +215,20 @@ return engine;
   const handlePlayDemoHit = (x: number, y: number, type: 'TUM' | 'TA') => {
     // Play synthesis
     const dist = type === 'TUM' ? 0.85 : 0.15;
-    const engine = getAudioEngine();
+    
+   async function getAudioEngine() {
+     const engine = getAudioEngine();
+      // FIX MOBILE: resume AudioContext antes de tocar
     if (engine.audioContext?.state === 'suspended') {
   await engine.audioContext.resume();
 }
 return engine;
     engine.playHit(x, y, dist, 0.9);
-
+   };
     // Flash canvas indicator
     const newDemoHit = { x, y, type, timestamp: Date.now() };
     setActiveRhythmHits(prev => [...prev.slice(-3), newDemoHit]); // Keep last 4 max
   };
-
   /**
    * Completely clear session statistics, combos and scores.
    */
