@@ -69,10 +69,10 @@ export default function App() {
   }, [currentMode]);
 
   // Lazy instantiate the Audio Engine on-demand to bypass initial browser autoplay blockades
-  const getAudioEngine = (): AtabaqueAudioEngine => {
+  const getAudioEngine = async (): Promise<AtabaqueAudioEngine> => {
     if (!audioEngineRef.current) {
       audioEngineRef.current = new AtabaqueAudioEngine(audioSettings);
-      audioEngineRef.current.init();
+      await audioEngineRef.current.init();
     }
     return audioEngineRef.current;
   };
@@ -109,7 +109,7 @@ export default function App() {
     }
 
     // 1. Play synthesis sound
-    const engine = getAudioEngine();
+    const engine = await getAudioEngine();
     const playbackStroke = await engine.playHit(x, y, distance, intensity);
 
     // 2. Increment interaction statistics
@@ -206,9 +206,9 @@ export default function App() {
    * Programmatic simulator triggers. Highlights canvas skin and plays audio.
    * Leveraged by "Ouvir Exemplo" and Playback demo sequences.
    */
-  const handlePlayDemoHit = (x: number, y: number, type: 'TUM' | 'TA') => {
+  const handlePlayDemoHit = async (x: number, y: number, type: 'TUM' | 'TA') => {
     const dist = type === 'TUM' ? 0.85 : 0.15;
-    const engine = getAudioEngine();
+    const engine = await getAudioEngine();
     engine.playHit(x, y, dist, 0.9);
 
     // Flash canvas indicator
@@ -315,8 +315,8 @@ export default function App() {
               Web Audio DSP
             </div>
             <button
-              onClick={() => {
-                const engine = getAudioEngine();
+              onClick={async () => {
+                const engine = await getAudioEngine();
                 engine.resume();
                 setAudioActivated(true);
               }}
