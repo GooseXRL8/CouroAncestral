@@ -51,25 +51,31 @@ export class AtabaqueAudioEngine {
         window.AudioContext || (window as any).webkitAudioContext;
       this.ctx = new AudioContextClass({ latencyHint: 'interactive' });
 
+      console.log('[AudioEngine] AudioContext created, state:', this.ctx.state);
+
       this.setupCompressor();
       this.setupMasterGain();
       this.setupReverbChain();
 
       // FIX MOBILE: resume AudioContext se suspenso (iOS/Android)
       if (this.ctx.state === 'suspended') {
+        console.log('[AudioEngine] AudioContext suspended, resuming...');
         await this.ctx.resume();
+        console.log('[AudioEngine] AudioContext resumed, state:', this.ctx.state);
       }
 
       // FIX MOBILE: listener para re-resume se browser suspender depois
       this.ctx.onstatechange = () => {
+        console.log('[AudioEngine] AudioContext state changed:', this.ctx?.state);
         if (this.ctx?.state === 'suspended') {
           this.ctx.resume();
         }
       };
 
       this.initialized = true;
+      console.log('[AudioEngine] Init complete, state:', this.ctx.state);
     } catch (e) {
-      console.error('Failed to initialize AudioContext:', e);
+      console.error('[AudioEngine] Failed to initialize:', e);
     }
   }
 
@@ -312,11 +318,18 @@ export class AtabaqueAudioEngine {
     try {
       // Ensure context is ready
       if (!this.ctx || !this.initialized) {
+        console.log('[AudioEngine] playHit: not initialized, calling init()');
         await this.init();
       }
-      if (!this.ctx) return { type: 'INTERMEDIATE' };
+      if (!this.ctx) {
+        console.error('[AudioEngine] playHit: ctx is null after init');
+        return { type: 'INTERMEDIATE' };
+      }
+
+      console.log('[AudioEngine] playHit: ctx state =', this.ctx.state);
 
       if (this.ctx.state === 'suspended') {
+        console.log('[AudioEngine] playHit: resuming suspended ctx');
         await this.ctx.resume();
       }
 
