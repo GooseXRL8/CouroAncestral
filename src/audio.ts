@@ -1,3 +1,4 @@
+
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -76,23 +77,24 @@ export class AtabaqueAudioEngine {
       this.reverbGain.connect(this.compressor);
 
       this.initialized = true;
+
+      // FIX MOBILE: resume AudioContext após primeiro gesto
+      if (this.ctx) {
+        this.ctx.addEventListener('statechange', () => {
+          if (this.ctx?.state === 'suspended') {
+            this.ctx.resume();
+          }
+        });
+      }
+
+      // FIX MOBILE: resume imediato se suspenso
+      if (this.ctx?.state === 'suspended') {
+        await this.ctx.resume();
+      }
     } catch (e) {
       console.error('Failed to initialize AudioContext:', e);
     }
   }
-// FIX MOBILE: resume AudioContext após primeiro gesto
-if (this.audioContext) {
-  this.audioContext.addEventListener('statechange', () => {
-    if (this.audioContext?.state === 'suspended') {
-      this.audioContext.resume();
-    }
-  });
-}
-
-// FIX MOBILE: resume imediato
-if (this.audioContext?.state === 'suspended') {
-  await this.audioContext.resume();
-}
 
   /**
    * Gera som sintético do impulso de reverb
@@ -100,7 +102,7 @@ if (this.audioContext?.state === 'suspended') {
   private createReverbImpulse(): void {
     if (!this.ctx || !this.reverbNode) return;
     const rate = this.ctx.sampleRate;
-    const length = rate * 1.2; // 1.2 segundos
+    const length = rate * 1.2;
     const impulse = this.ctx.createBuffer(2, length, rate);
     for (let ch = 0; ch < 2; ch++) {
       const data = impulse.getChannelData(ch);
@@ -117,7 +119,8 @@ if (this.audioContext?.state === 'suspended') {
    */
   public setVolume(volume: number): void {
     this.settings.volume = volume;
-    if (this.ctx && this.masterGain) {
+
+if (this.ctx && this.masterGain) {
       this.masterGain.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.05);
     }
   }
@@ -151,19 +154,17 @@ if (this.audioContext?.state === 'suspended') {
 
   /**
    * Locks physical hit distance coordinates into stable percussive tonal regions.
-   * QA-03 helper function extracted for better layout separation and DRY design.
    */
   private mapToStableZone(t: number): number {
     if (t < TA_TUM_THRESHOLD) {
-      return this.lerp(0.12, 0.22, t / TA_TUM_THRESHOLD); // Locked TÁ center zone (high)
+      return this.lerp(0.12, 0.22, t / TA_TUM_THRESHOLD);
     } else {
-      return this.lerp(0.82, 0.92, (t - TA_TUM_THRESHOLD) / (1 - TA_TUM_THRESHOLD)); // Locked TUM rim zone (bass)
+      return this.lerp(0.82, 0.92, (t - TA_TUM_THRESHOLD) / (1 - TA_TUM_THRESHOLD));
     }
   }
 
   /**
-   * Structural calculation model for physical parameters (frequencies, envelope, timbre).
-   * QA-03 helper function extracting the multi-level synthesis coefficients.
+   * Structural calculation model for physical parameters.
    */
   private calculateParameters(
     distance: number,
@@ -173,21 +174,18 @@ if (this.audioContext?.state === 'suspended') {
   ): AudioParameters {
     const t_stable = this.mapToStableZone(distance);
 
-    // === FREQUÊNCIAS ===
-    const f0 = this.lerp(280, 75, t_stable) * tuningFactor;          // fundamental
-    const f1 = this.lerp(420, 150, t_stable) * tuningFactor;         // 1º harmônico
-    const f2 = this.lerp(680, 280, t_stable) * tuningFactor;         // 2º harmônico
-    const f3 = this.lerp(950, 420, t_stable) * tuningFactor;         // 3º harmônico
+    const f0 = this.lerp(280, 75, t_stable) * tuningFactor;
+    const f1 = this.lerp(420, 150, t_stable) * tuningFactor;
+    const f2 = this.lerp(680, 280, t_stable) * tuningFactor;
+    const f3 = this.lerp(950, 420, t_stable) * tuningFactor;
 
-    // === ENVELOPE ===
     const attack = this.lerp(0.003, 0.008, t_stable);
     const decay = this.lerp(0.12, 0.45, t_stable) * (1 + press * 0.3);
     const sustain = this.lerp(0.02, 0.08, t_stable);
     const release = this.lerp(0.08, 0.25, t_stable);
 
-    // === TIMBRE ===
-    const brightness = this.lerp(0.9, 0.3, t_stable); // centro = brilhante
-    const body = this.lerp(0.2, 0.8, t_stable);       // borda = encorpado
+    const brightness = this.lerp(0.9, 0.3, t_stable);
+    const body = this.lerp(0.2, 0.8, t_stable);
 
     return {
       t_stable,
@@ -200,7 +198,6 @@ if (this.audioContext?.state === 'suspended') {
 
   /**
    * Plays a physical modeling percussion stroke depending on hit position.
-   * BUG-01: Correctly asynchronous, robust, and avoids browser autoplay blocker issues.
    */
   public async playHit(
     x: number,
@@ -209,7 +206,6 @@ if (this.audioContext?.state === 'suspended') {
     intensity: number
   ): Promise<{ type: 'TUM' | 'TA' | 'INTERMEDIATE' }> {
     try {
-      // BUG-01 & SEC-02: Ensure AudioContext remains active on user gestures
       if (!this.ctx || !this.initialized) {
         await this.init();
       }
@@ -220,84 +216,61 @@ if (this.audioContext?.state === 'suspended') {
         await this.ctx.resume();
       }
 
-      // SEC-01: Strict input coordinate bounds validation
       const safeX = Math.min(Math.max(x, -1), 1);
       const safeY = Math.min(Math.max(y, -1), 1);
       const safeDistance = Math.min(Math.max(distance, 0), 1);
       const safeIntensity = Math.min(Math.max(intensity, 0), 1);
 
       const now = this.ctx.currentTime;
-      
-      // Determine type categorization
       const type: 'TUM' | 'TA' | 'INTERMEDIATE' = safeDistance < TA_TUM_THRESHOLD ? 'TA' : 'TUM';
 
-      // -------------------------------------------------------------
-      // ACTIVE VOICE CHOKING / PHASE SYNC ENGINE
-      // -------------------------------------------------------------
       this.activeGains = this.activeGains.filter(voice => {
         const age = now - voice.time;
-        // BUG-03: More aggressive voice clearance (from 2.0s to 1.0s)
         if (age > 1.0) {
           return false;
         }
-
         if (age > CHOKE_THRESHOLD_SEC) {
           if (voice.type === type || (type === 'TA' && voice.type === 'INTERMEDIATE')) {
             try {
               voice.output.gain.cancelScheduledValues(now);
               voice.output.gain.setTargetAtTime(0, now, 0.015);
-            } catch (err) {
-              // safe ignore
-            }
+            } catch (err) {}
           }
         }
         return true;
       });
 
-      // Smart pressure support
       const press = SKIN_TENSION;
       const vel = Math.min(Math.max(safeIntensity, MIN_VELOCITY), 1.0);
 
-      // Adapt tuning and tension size characteristics to keep configurable presets
       let tuningFactor = 1.0;
       if (this.settings.tuning === 'RUMPI') {
         tuningFactor = 1.35;
       } else if (this.settings.tuning === 'LE') {
-        tuningFactor = 1.70;
+tuningFactor = 1.70;
       }
       tuningFactor *= this.settings.frequencyFactor;
 
-      // QA-03 helper map
       const params = this.calculateParameters(safeDistance, safeIntensity, press, tuningFactor);
 
       const output = this.ctx.createGain();
       output.gain.setValueAtTime(0, now);
 
-      // Track active output gain for choking
-      this.activeGains.push({
-        output,
-        type,
-        time: now
-      });
+      this.activeGains.push({ output, type, time: now });
 
-      // BUG-03 footprint containment
       if (this.activeGains.length > 20) {
         this.activeGains = this.activeGains.slice(-10);
       }
 
-      // Stereo Panning for immersive audio placement based on click coordinates
       const panner = this.ctx.createStereoPanner();
       panner.pan.setValueAtTime(safeX * 0.4, now);
 
       output.connect(panner);
       panner.connect(this.masterGain!);
 
-      // BUG-02 explicitly trace generated nodes to guarantee full teardown
       const connectedNodes: AudioNode[] = [output, panner];
 
-      // Pequena imperfeição de afinação (realismo)
       const detune = (Math.random() - 0.5) * 8;
-
       const { frequencies, amplitudes, envelope } = params;
       const { attack, decay, sustain, release } = envelope;
 
@@ -319,21 +292,20 @@ if (this.audioContext?.state === 'suspended') {
         osc.connect(gain);
         gain.connect(output);
         osc.start(now);
-        
+
         const stopTime = now + attack + decay + release + 0.1;
         osc.stop(stopTime);
-        
+
         osc.onended = () => {
           try {
             osc.disconnect();
             gain.disconnect();
-          } catch (e) { /* safe ignore */ }
+          } catch (e) {}
         };
 
         connectedNodes.push(osc, gain);
       });
 
-      // === RUÍDO DE IMPACTO (ataque) ===
       const noiseLen = this.lerp(0.04, 0.08, params.t_stable);
       const noiseBuf = this.ctx.createBuffer(1, this.ctx.sampleRate * noiseLen, this.ctx.sampleRate);
       const noiseData = noiseBuf.getChannelData(0);
@@ -353,29 +325,26 @@ if (this.audioContext?.state === 'suspended') {
       noiseSrc.connect(noiseFilter);
       noiseFilter.connect(noiseGain);
       noiseGain.connect(output);
-      
+
       noiseSrc.start(now);
       noiseSrc.stop(now + noiseLen);
 
-      // BUG-02 noise sequence automatic cleanup
       noiseSrc.onended = () => {
         try {
           noiseSrc.disconnect();
           noiseFilter.disconnect();
           noiseGain.disconnect();
-        } catch (e) { /* safe ignore */ }
+        } catch (e) {}
       };
 
       connectedNodes.push(noiseSrc, noiseFilter, noiseGain);
 
-      // === ENVELOPE MASTER ===
       const masterEnv = this.lerp(0.5, 0.9, params.t_stable) * vel * press;
       output.gain.setValueAtTime(0, now);
       output.gain.linearRampToValueAtTime(masterEnv, now + attack);
       output.gain.exponentialRampToValueAtTime(masterEnv * 0.3, now + attack + decay * 0.5);
       output.gain.exponentialRampToValueAtTime(0.001, now + attack + decay + release);
 
-      // BUG-02: Clean up reference nodes completely with faster release cycle
       const duration = attack + decay + release + 0.05;
       setTimeout(() => {
         try {
@@ -384,9 +353,7 @@ if (this.audioContext?.state === 'suspended') {
               node.disconnect();
             } catch (_) {}
           });
-        } catch (err) {
-          // safe ignore
-        }
+        } catch (err) {}
       }, duration * 1000);
 
       return { type };
@@ -395,8 +362,7 @@ if (this.audioContext?.state === 'suspended') {
       return { type: 'INTERMEDIATE' };
     }
   }
-
-  /**
+/**
    * Helper utility to resume or warm up the context.
    */
   public resume(): void {
