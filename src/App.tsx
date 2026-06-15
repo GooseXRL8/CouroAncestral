@@ -74,10 +74,7 @@ export default function App() {
       audioEngineRef.current = new AtabaqueAudioEngine(audioSettings);
       audioEngineRef.current.init();
     }
-  const engine = getAudioEngine();
-    if (engine.audioContext?.state === 'suspended') {
-  await engine.audioContext.resume();
-}
+ 
 return engine;
     return audioEngineRef.current;
   };
@@ -115,6 +112,10 @@ return engine;
 
     // 1. Play synthesis sound
     const engine = getAudioEngine();
+    if (engine.audioContext?.state === 'suspended') {
+  await engine.audioContext.resume();
+}
+return engine;
     const playbackStroke = await engine.playHit(x, y, distance, intensity);
 
     // 2. Increment interaction statistics
@@ -215,6 +216,10 @@ return engine;
     // Play synthesis
     const dist = type === 'TUM' ? 0.85 : 0.15;
     const engine = getAudioEngine();
+    if (engine.audioContext?.state === 'suspended') {
+  await engine.audioContext.resume();
+}
+return engine;
     engine.playHit(x, y, dist, 0.9);
 
     // Flash canvas indicator
