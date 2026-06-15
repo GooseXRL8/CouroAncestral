@@ -74,6 +74,11 @@ export default function App() {
       audioEngineRef.current = new AtabaqueAudioEngine(audioSettings);
       audioEngineRef.current.init();
     }
+  const engine = getAudioEngine();
+    if (engine.audioContext?.state === 'suspended') {
+  await engine.audioContext.resume();
+}
+return engine;
     return audioEngineRef.current;
   };
 
