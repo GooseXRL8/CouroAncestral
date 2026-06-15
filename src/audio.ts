@@ -81,14 +81,16 @@ export class AtabaqueAudioEngine {
     }
   }
 // FIX MOBILE: resume AudioContext após primeiro gesto
-this.audioContext?.addEventListener('statechange', () => {
-  if (this.audioContext?.state === 'suspended') {
-    this.audioContext.resume();
-  }
-});
+if (this.audioContext) {
+  this.audioContext.addEventListener('statechange', () => {
+    if (this.audioContext?.state === 'suspended') {
+      this.audioContext.resume();
+    }
+  });
+}
 
-// FIX MOBILE: resume imediato (alguns browsers precisam disso)
-if (this.audioContext.state === 'suspended') {
+// FIX MOBILE: resume imediato
+if (this.audioContext?.state === 'suspended') {
   await this.audioContext.resume();
 }
 
