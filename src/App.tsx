@@ -112,9 +112,6 @@ return engine;
 
     // 1. Play synthesis sound
     const engine = getAudioEngine();
-    if (engine.audioContext?.state === 'suspended') {
-  await engine.audioContext.resume();
-}
 return engine;
     const playbackStroke = await engine.playHit(x, y, distance, intensity);
 
