@@ -436,8 +436,6 @@ export default function AtabaqueCanvas({
       cancelAnimationFrame(animationFrameId);
     };
   }, [activeRhythmHits]);
-   // Haptic feedback (mobile)
-     if (navigator.vibrate) navigator.vibrate(10);
 
   const triggerHitGeneric = async (
     normX: number,

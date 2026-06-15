@@ -74,8 +74,6 @@ export default function App() {
       audioEngineRef.current = new AtabaqueAudioEngine(audioSettings);
       audioEngineRef.current.init();
     }
- 
-return engine;
     return audioEngineRef.current;
   };
 
@@ -112,7 +110,6 @@ return engine;
 
     // 1. Play synthesis sound
     const engine = getAudioEngine();
-return engine;
     const playbackStroke = await engine.playHit(x, y, distance, intensity);
 
     // 2. Increment interaction statistics
@@ -210,21 +207,13 @@ return engine;
    * Leveraged by "Ouvir Exemplo" and Playback demo sequences.
    */
   const handlePlayDemoHit = (x: number, y: number, type: 'TUM' | 'TA') => {
-    // Play synthesis
     const dist = type === 'TUM' ? 0.85 : 0.15;
-    
-   async function getAudioEngine() {
-     const engine = getAudioEngine();
-      // FIX MOBILE: resume AudioContext antes de tocar
-    if (engine.audioContext?.state === 'suspended') {
-  await engine.audioContext.resume();
-}
-return engine;
+    const engine = getAudioEngine();
     engine.playHit(x, y, dist, 0.9);
-   };
+
     // Flash canvas indicator
     const newDemoHit = { x, y, type, timestamp: Date.now() };
-    setActiveRhythmHits(prev => [...prev.slice(-3), newDemoHit]); // Keep last 4 max
+    setActiveRhythmHits(prev => [...prev.slice(-3), newDemoHit]);
   };
   /**
    * Completely clear session statistics, combos and scores.
