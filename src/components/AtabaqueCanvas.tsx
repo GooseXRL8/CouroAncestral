@@ -583,8 +583,8 @@ export default function AtabaqueCanvas({
       const key = e.key.toLowerCase();
       
       // UX-03: support customizable keyboard controls (loaded from LocalStorage)
-      const cachedTaKeys = (localStorage.getItem('key_ta') || 'c,v').split(',');
-      const cachedTumKeys = (localStorage.getItem('key_tum') || 'n,m').split(',');
+      const cachedTaKeys = (localStorage.getItem('key_ta') || 'f,j').split(',');
+      const cachedTumKeys = (localStorage.getItem('key_tum') || 'c,m').split(',');
 
       if (cachedTaKeys.includes(key)) {
         triggerHitGeneric(0.0, 0.0, 0.15, 0.9);
@@ -680,7 +680,7 @@ export default function AtabaqueCanvas({
               Ativação do Som
             </p>
             <p className="text-[11px] text-stone-300 leading-normal">
-              Toque na pele do tambor ou use o teclado (<strong className="text-[#f27d26] font-mono">C, V</strong> e <strong className="text-red-400 font-mono">N, M</strong>) para ouvir os harmônicos tradicionais!
+              Toque na pele do tambor ou use o teclado (<strong className="text-[#f27d26] font-mono">F, J</strong> e <strong className="text-red-400 font-mono">C, M</strong>) para ouvir os harmônicos tradicionais!
             </p>
           </div>
         </div>
@@ -708,14 +708,14 @@ export default function AtabaqueCanvas({
       {/* Keyboard shortcuts visual panel for PC desktop view */}
       <div className="absolute bottom-2 hidden sm:flex gap-3 text-[10px] md:text-[11px] font-semibold text-stone-400 select-none pointer-events-none z-10 font-sans px-4 bg-[#120d0a]/85 backdrop-blur border border-[#f27d26]/12 rounded-xl py-2 shadow-lg">
         <div className="flex items-center gap-1.5">
-          <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">C</span>
+          <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">F</span>
           <span className="text-stone-500 font-light">ou</span>
-          <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">V</span>
+          <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">J</span>
           <span className="text-amber-450 ml-0.5">TÁ (Centro Agudo)</span>
         </div>
         <div className="text-stone-700/80 font-light px-0.5">|</div>
         <div className="flex items-center gap-1.5">
-          <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">N</span>
+          <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">C</span>
           <span className="text-stone-500 font-light">ou</span>
           <span className="bg-[#241a14] border border-[#3e2c21] rounded px-1.5 py-0.5 text-stone-100 font-mono text-[10px] shadow-sm">M</span>
           <span className="text-red-450 ml-0.5">TUM (Borda Grave)</span>
