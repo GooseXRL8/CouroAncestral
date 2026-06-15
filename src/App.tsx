@@ -20,6 +20,14 @@ export default function App() {
   const [currentMode, setCurrentMode] = useState<PlayMode>('FREE');
   const [hitCount, setHitCount] = useState<number>(0);
   const [audioActivated, setAudioActivated] = useState<boolean>(false);
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [showDebug, setShowDebug] = useState<boolean>(true);
+
+  const addDebugLog = (msg: string) => {
+    const time = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+    setDebugLogs(prev => [...prev.slice(-30), `[${time}] ${msg}`]);
+    console.log('[Atabaque]', msg);
+  };
   
   const [audioSettings, setAudioSettings] = useState<AudioSettings>({
     volume: 0.8,
@@ -71,8 +79,10 @@ export default function App() {
   // Lazy instantiate the Audio Engine on-demand to bypass initial browser autoplay blockades
   const getAudioEngine = async (): Promise<AtabaqueAudioEngine> => {
     if (!audioEngineRef.current) {
+      addDebugLog('Creating AudioEngine...');
       audioEngineRef.current = new AtabaqueAudioEngine(audioSettings);
       await audioEngineRef.current.init();
+      addDebugLog('AudioEngine created & initialized');
     }
     return audioEngineRef.current;
   };
@@ -109,8 +119,10 @@ export default function App() {
     }
 
     // 1. Play synthesis sound
+    addDebugLog(`Hit: dist=${distance.toFixed(2)} int=${intensity.toFixed(2)}`);
     const engine = await getAudioEngine();
     const playbackStroke = await engine.playHit(x, y, distance, intensity);
+    addDebugLog(`Playback result: ${playbackStroke.type}`);
 
     // 2. Increment interaction statistics
     setHitCount(prev => prev + 1);
@@ -517,7 +529,49 @@ export default function App() {
           WEB AUDIO PROCEDURAL MODELLING ENGINE • 2026
         </p>
       </footer>
-      
+
+      {/* DEBUG PANEL — visível no mobile para diagnóstico */}
+      {showDebug && (
+        <div className="fixed bottom-0 left-0 right-0 z-[100] bg-black/95 border-t-2 border-orange-500 max-h-[40vh] overflow-y-auto">
+          <div className="flex items-center justify-between px-3 py-1.5 bg-orange-950/80 sticky top-0">
+            <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wider">🔧 Debug Console</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDebugLogs([])}
+                className="text-[9px] bg-red-900/60 text-red-300 px-2 py-0.5 rounded cursor-pointer"
+              >
+                Limpar
+              </button>
+              <button
+                onClick={() => setShowDebug(false)}
+                className="text-[9px] bg-stone-800 text-stone-300 px-2 py-0.5 rounded cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+          <div className="px-3 py-2 font-mono text-[10px] leading-relaxed">
+            {debugLogs.length === 0 ? (
+              <p className="text-stone-600 italic">Toque no tambor para ver logs...</p>
+            ) : (
+              debugLogs.map((log, i) => (
+                <div key={i} className={`${log.includes('ERROR') || log.includes('null') || log.includes('failed') ? 'text-red-400' : log.includes('resum') || log.includes('running') ? 'text-green-400' : 'text-amber-300'}`}>
+                  {log}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {!showDebug && (
+        <button
+          onClick={() => setShowDebug(true)}
+          className="fixed bottom-2 right-2 z-[100] bg-orange-600 text-black text-[9px] font-bold px-2 py-1 rounded-full shadow-lg cursor-pointer"
+        >
+          🔧 Debug
+        </button>
+      )}
     </div>
   );
 }
