@@ -23,7 +23,11 @@ export default function App() {
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [showDebug, setShowDebug] = useState<boolean>(true);
 
-
+  const addDebugLog = (msg: string) => {
+    const time = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+    setDebugLogs(prev => [...prev.slice(-30), `[${time}] ${msg}`]);
+    console.log('[Atabaque]', msg);
+  };
   
   const [audioSettings, setAudioSettings] = useState<AudioSettings>({
     volume: 0.8,
@@ -389,7 +393,7 @@ export default function App() {
               </h3>
               {isRecording && (
                 <span className="flex items-center gap-1.5 text-[10px] text-red-500 font-extrabold animate-pulse">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-600 shadow-[0_0_8px_#ef4444]"></span> GRAVANDO
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-650 shadow-[0_0_8px_#ef4444]"></span> GRAVANDO
                 </span>
               )}
             </div>
@@ -403,14 +407,14 @@ export default function App() {
                 <button
                   onClick={startRecording}
                   disabled={isPlayingRecording}
-                  className="flex-1 min-w-[120px] py-2 bg-red-900/20 hover:bg-red-900/40 text-red-100 hover:text-red-300 border border-red-900/30 rounded-xl text-xs font-bold transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                  className="flex-1 min-w-[120px] py-2 bg-red-950/20 hover:bg-red-900/40 text-red-100 hover:text-red-300 border border-red-900/30 rounded-xl text-xs font-bold transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
                 >
                   <span className="w-2 h-2 rounded-full bg-red-500"></span> Gravar
                 </button>
               ) : (
                 <button
                   onClick={stopRecording}
-                  className="flex-1 min-w-[120px] py-2 bg-stone-900 hover:bg-stone-800 text-stone-100 border border-stone-800 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                  className="flex-1 min-w-[120px] py-2 bg-stone-900 hover:bg-stone-850 text-stone-100 border border-stone-800 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
                 >
                   <Square className="w-3 h-3 fill-current text-white" /> Parar
                 </button>
@@ -429,7 +433,7 @@ export default function App() {
                   ) : (
                     <button
                       onClick={stopPlaybackRecording}
-                      className="flex-1 min-w-[140px] py-2 bg-stone-900 hover:bg-stone-800 text-stone-100 border border-stone-800 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                      className="flex-1 min-w-[140px] py-2 bg-stone-900 hover:bg-stone-850 text-stone-100 border border-stone-800 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
                     >
                       <Square className="w-3 h-3 fill-stone-100" /> Parar Reprodução
                     </button>
@@ -560,14 +564,14 @@ export default function App() {
         </div>
       )}
 
-      {!showDebug && (
+      {/* {!showDebug && (
         <button
           onClick={() => setShowDebug(true)}
           className="fixed bottom-2 right-2 z-[100] bg-orange-600 text-black text-[9px] font-bold px-2 py-1 rounded-full shadow-lg cursor-pointer"
         >
           🔧 Debug
         </button>
-      )}
+      )} */}
     </div>
   );
 }
