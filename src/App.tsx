@@ -23,11 +23,7 @@ export default function App() {
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [showDebug, setShowDebug] = useState<boolean>(true);
 
-  const addDebugLog = (msg: string) => {
-    const time = new Date().toLocaleTimeString('pt-BR', { hour12: false });
-    setDebugLogs(prev => [...prev.slice(-30), `[${time}] ${msg}`]);
-    console.log('[Atabaque]', msg);
-  };
+
   
   const [audioSettings, setAudioSettings] = useState<AudioSettings>({
     volume: 0.8,
