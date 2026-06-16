@@ -641,7 +641,7 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
       </div>
 
       {/* SEC-02: Translucent welcome banner offering instant haptic and gesture explanation */}
-      {!audioActivated && (
+      {/*  {!audioActivated && (
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-40 px-4">
           <div className="bg-[#1a1310]/95 border border-[#f27d26]/30 rounded-2xl p-4 sm:p-5 max-w-[320px] text-center shadow-2xl backdrop-blur-md animate-pulse leading-relaxed">
             <p className="text-[#f27d26] text-xs font-bold uppercase tracking-[0.2em] mb-1">
@@ -652,7 +652,7 @@ export default function AtabaqueCanvas({ onHit, activeRhythmHits = [] }: Atabaqu
             </p>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Main Canvas Frame */}
       <div 
