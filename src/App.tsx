@@ -19,7 +19,7 @@ export default function App() {
   // 1. Core State Managers
   const [currentMode, setCurrentMode] = useState<PlayMode>('FREE');
   const [hitCount, setHitCount] = useState<number>(0);
-  const [audioActivated, setAudioActivated] = useState<boolean>(true);
+  const [audioActivated, setAudioActivated] = useState<boolean>(false);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [showDebug, setShowDebug] = useState<boolean>(true);
 
