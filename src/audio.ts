@@ -73,8 +73,9 @@ export class AtabaqueAudioEngine {
       };
 
       this.initialized = true;
+      console.log('[AudioEngine] Init complete, state:', this.ctx.state);
     } catch (e) {
-      // Silently fail — audio unavailable
+      console.error('[AudioEngine] Failed to initialize:', e);
     }
   }
 
@@ -377,7 +378,8 @@ export class AtabaqueAudioEngine {
 
       return { type };
     } catch (e) {
-      return { type: 'INTERMEDIATE' as const };
+      console.error('Audio playback failed:', e);
+      return { type: 'INTERMEDIATE' };
     }
   }
 
