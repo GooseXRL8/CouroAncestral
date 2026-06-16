@@ -21,7 +21,7 @@ export default function App() {
   const [hitCount, setHitCount] = useState<number>(0);
   const [audioActivated, setAudioActivated] = useState<boolean>(false);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
-  const [showDebug, setShowDebug] = useState<boolean>(true);
+  const [showDebug, setShowDebug] = useState<boolean>(false);
 
   const addDebugLog = (msg: string) => {
     const time = new Date().toLocaleTimeString('pt-BR', { hour12: false });
