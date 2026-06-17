@@ -604,7 +604,7 @@ export default function AtabaqueCanvas({
    * Calculates structural and physical hit metadata, emits sound & triggers visual physics.
    */
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
+    // SEC-02: Ensure pointer events are allowed to propagate for initial audio unlock
     const canvas = canvasRef.current;
     if (!canvas) return;
 

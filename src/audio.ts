@@ -63,15 +63,10 @@ export class AtabaqueAudioEngine {
 
       // FIX MOBILE: resume AudioContext se suspenso (iOS/Android)
       // Em smartphones, o contexto só pode ser retomado dentro de um evento de clique
-      if (this.ctx.state === 'suspended') {
-        console.log('[AudioEngine] AudioContext suspended, attempting resume...');
+      if (this.ctx.state !== 'running') {
+        console.log('[AudioEngine] AudioContext not running, attempting resume...');
         await this.ctx.resume();
       }
-
-      // FIX MOBILE: listener para re-resume se browser suspender depois
-      this.ctx.onstatechange = () => {
-        console.log('[AudioEngine] AudioContext state changed:', this.ctx?.state);
-      };
 
       this.initialized = true;
       console.log('[AudioEngine] Init complete, state:', this.ctx.state);
@@ -98,10 +93,18 @@ export class AtabaqueAudioEngine {
       }
     };
 
-    // slap.wav (TA) and open.wav (TUM)
+    // Use import.meta.env.BASE_URL to support subpath deployments (GitHub Pages)
+    const baseUrl = (import.meta as any).env.BASE_URL || '/';
+    const normalizeUrl = (path: string) => `${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}${path.startsWith('/') ? path.slice(1) : path}`;
+
+    const slapUrl = normalizeUrl('sounds/slap.wav');
+    const openUrl = normalizeUrl('sounds/open.wav');
+
+    console.log('[AudioEngine] Loading sounds from:', { slapUrl, openUrl });
+
     const [slap, open] = await Promise.all([
-      loadBuffer('/sounds/slap.wav'),
-      loadBuffer('/sounds/open.wav')
+      loadBuffer(slapUrl),
+      loadBuffer(openUrl)
     ]);
 
     this.slapBuffer = slap;
@@ -204,7 +207,7 @@ export class AtabaqueAudioEngine {
 
   public async resume(): Promise<void> {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') {
+      if (this.ctx.state !== 'running') {
         await this.ctx.resume();
       }
     } else {

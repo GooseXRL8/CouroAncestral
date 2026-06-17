@@ -115,6 +115,8 @@ export default function App() {
   ): Promise<{ type: 'TUM' | 'TA' | 'INTERMEDIATE' }> => {
     // SEC-02 gesture activation
     if (!audioActivated) {
+      const engine = await getAudioEngine();
+      await engine.resume();
       setAudioActivated(true);
     }
 
