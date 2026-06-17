@@ -8,6 +8,7 @@ import {
   COMPRESSOR_THRESHOLD_DB,
   TA_TUM_THRESHOLD,
   CHOKE_THRESHOLD_SEC,
+  SKIN_TENSION
 } from './constants';
 
 /**
@@ -40,10 +41,6 @@ export class AtabaqueAudioEngine {
 
   // ─── INITIALIZATION ───────────────────────────────────────────
 
-  /**
-   * Initializes the AudioContext and configures all audio nodes.
-   * Safe to call multiple times — returns early if already initialized.
-   */
   public async init(): Promise<void> {
     if (this.initialized && this.ctx?.state === 'running') return;
 
@@ -57,14 +54,12 @@ export class AtabaqueAudioEngine {
         this.setupMasterGain();
         this.setupReverbChain();
         
-        // Load sound files once
+        // Load sound files
         await this.loadSounds();
       }
 
-      // FIX MOBILE: resume AudioContext se suspenso (iOS/Android)
-      // Em smartphones, o contexto só pode ser retomado dentro de um evento de clique
       if (this.ctx.state !== 'running') {
-        console.log('[AudioEngine] AudioContext not running, attempting resume...');
+        console.log('[AudioEngine] Resuming AudioContext...');
         await this.ctx.resume();
       }
 
@@ -75,16 +70,13 @@ export class AtabaqueAudioEngine {
     }
   }
 
-  /**
-   * Loads the WAV files into AudioBuffers.
-   */
   private async loadSounds(): Promise<void> {
     if (!this.ctx) return;
 
     const loadBuffer = async (url: string): Promise<AudioBuffer | null> => {
       try {
         const response = await fetch(url);
-        if (!response.ok) throw new Error(`Failed to load ${url}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const arrayBuffer = await response.arrayBuffer();
         return await this.ctx!.decodeAudioData(arrayBuffer);
       } catch (e) {
@@ -93,12 +85,15 @@ export class AtabaqueAudioEngine {
       }
     };
 
-    // Use import.meta.env.BASE_URL to support subpath deployments (GitHub Pages)
-    const baseUrl = (import.meta as any).env.BASE_URL || '/';
-    const normalizeUrl = (path: string) => `${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}${path.startsWith('/') ? path.slice(1) : path}`;
+    const baseUrl = (import.meta as any).env.BASE_URL || './';
+    const normalizeUrl = (path: string) => {
+      const base = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
+      const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+      return base + cleanPath;
+    };
 
-    const slapUrl = normalizeUrl('./sounds/slap.wav');
-    const openUrl = normalizeUrl('./sounds/open.wav');
+    const slapUrl = normalizeUrl('sounds/slap.wav');
+    const openUrl = normalizeUrl('sounds/open.wav');
 
     console.log('[AudioEngine] Loading sounds from:', { slapUrl, openUrl });
 
@@ -111,15 +106,10 @@ export class AtabaqueAudioEngine {
     this.openBuffer = open;
   }
 
-  /**
-   * Creates and connects the dynamics compressor.
-   */
   private setupCompressor(): void {
     if (!this.ctx) return;
-
     this.compressor = this.ctx.createDynamicsCompressor();
     const now = this.ctx.currentTime;
-
     this.compressor.threshold.setValueAtTime(COMPRESSOR_THRESHOLD_DB, now);
     this.compressor.knee.setValueAtTime(4, now);
     this.compressor.ratio.setValueAtTime(3, now);
@@ -128,39 +118,24 @@ export class AtabaqueAudioEngine {
     this.compressor.connect(this.ctx.destination);
   }
 
-  /**
-   * Creates and connects the master gain node.
-   */
   private setupMasterGain(): void {
     if (!this.ctx) return;
-
     this.masterGain = this.ctx.createGain();
     this.masterGain.gain.setValueAtTime(this.settings.volume, this.ctx.currentTime);
     this.masterGain.connect(this.compressor!);
   }
 
-  /**
-   * Creates the reverb chain: convolver → reverbGain, plus dryGain.
-   */
   private setupReverbChain(): void {
     if (!this.ctx || !this.masterGain) return;
-
     const now = this.ctx.currentTime;
-
     this.reverbNode = this.ctx.createConvolver();
     this.createReverbImpulse();
-
     this.reverbGain = this.ctx.createGain();
-    const wet = this.settings.reverbEnabled ? 0.35 : 0;
-    this.reverbGain.gain.setValueAtTime(wet, now);
-
+    this.reverbGain.gain.setValueAtTime(this.settings.reverbEnabled ? 0.35 : 0, now);
     this.dryGain = this.ctx.createGain();
-    const dry = this.settings.reverbEnabled ? 0.75 : 1.0;
-    this.dryGain.gain.setValueAtTime(dry, now);
-
+    this.dryGain.gain.setValueAtTime(this.settings.reverbEnabled ? 0.75 : 1.0, now);
     this.masterGain.connect(this.dryGain);
     this.dryGain.connect(this.compressor!);
-
     this.masterGain.connect(this.reverbNode);
     this.reverbNode.connect(this.reverbGain);
     this.reverbGain.connect(this.compressor!);
@@ -168,11 +143,9 @@ export class AtabaqueAudioEngine {
 
   private createReverbImpulse(): void {
     if (!this.ctx || !this.reverbNode) return;
-
     const rate = this.ctx.sampleRate;
     const length = rate * 1.2;
     const impulse = this.ctx.createBuffer(2, length, rate);
-
     for (let ch = 0; ch < 2; ch++) {
       const data = impulse.getChannelData(ch);
       for (let i = 0; i < length; i++) {
@@ -180,7 +153,6 @@ export class AtabaqueAudioEngine {
         data[i] = (Math.random() * 2 - 1) * decay * 0.5;
       }
     }
-
     this.reverbNode.buffer = impulse;
   }
 
@@ -207,9 +179,7 @@ export class AtabaqueAudioEngine {
 
   public async resume(): Promise<void> {
     if (this.ctx) {
-      if (this.ctx.state !== 'running') {
-        await this.ctx.resume();
-      }
+      if (this.ctx.state !== 'running') await this.ctx.resume();
     } else {
       await this.init();
     }
@@ -221,7 +191,6 @@ export class AtabaqueAudioEngine {
     this.activeGains = this.activeGains.filter(voice => {
       const age = now - voice.time;
       if (age > 1.0) return false;
-
       if (age > CHOKE_THRESHOLD_SEC) {
         if (voice.type === currentType || (currentType === 'TA' && voice.type === 'INTERMEDIATE')) {
           try {
@@ -232,17 +201,11 @@ export class AtabaqueAudioEngine {
       }
       return true;
     });
-
-    if (this.activeGains.length > 20) {
-      this.activeGains = this.activeGains.slice(-10);
-    }
+    if (this.activeGains.length > 20) this.activeGains = this.activeGains.slice(-10);
   }
 
   // ─── PLAYBACK ────────────────────────────────────────────────
 
-  /**
-   * Plays a sample-based drum stroke.
-   */
   public async playHit(
     x: number,
     y: number,
@@ -250,81 +213,82 @@ export class AtabaqueAudioEngine {
     intensity: number
   ): Promise<{ type: 'TUM' | 'TA' | 'INTERMEDIATE' }> {
     try {
-      if (!this.ctx || !this.initialized) {
-        await this.init();
-      }
+      if (!this.ctx || !this.initialized) await this.init();
       if (!this.ctx) return { type: 'INTERMEDIATE' };
-
-      // Re-resume context on every hit if it's not running (important for mobile)
-      if (this.ctx.state !== 'running') {
-        await this.ctx.resume();
-      }
+      if (this.ctx.state !== 'running') await this.ctx.resume();
 
       const safeX = Math.min(Math.max(x, -1), 1);
       const safeDistance = Math.min(Math.max(distance, 0), 1);
       const safeIntensity = Math.min(Math.max(intensity, 0), 1);
-
       const now = this.ctx.currentTime;
       const type: ActiveVoice['type'] = safeDistance < TA_TUM_THRESHOLD ? 'TA' : 'TUM';
 
       this.cleanupVoices(now, type);
 
-      // Select buffer
-      const buffer = type === 'TA' ? this.slapBuffer : this.openBuffer;
-      if (!buffer) {
-        console.warn(`[AudioEngine] Buffer for ${type} not loaded yet.`);
-        return { type };
-      }
-
-      // Output chain: source → output → panner → masterGain
       const output = this.ctx.createGain();
       output.gain.setValueAtTime(0, now);
-      
-      // Master envelope for the sample
-      const attack = 0.002;
-      const release = 0.1;
-      output.gain.linearRampToValueAtTime(safeIntensity, now + attack);
-      
       this.activeGains.push({ output, type, time: now });
 
       const panner = this.ctx.createStereoPanner();
       panner.pan.setValueAtTime(safeX * 0.4, now);
-      
-      const source = this.ctx.createBufferSource();
-      source.buffer = buffer;
-      
-      // Pitch adjustment based on tuning settings
-      const presetFactors: Record<string, number> = {
-        RUM: 1.0,
-        RUMPI: 1.2,
-        LE: 1.4
-      };
-      const tuningFactor = (presetFactors[this.settings.tuning] ?? 1.0) * this.settings.frequencyFactor;
-      source.playbackRate.setValueAtTime(tuningFactor, now);
-
-      // Routing
-      source.connect(output);
       output.connect(panner);
       panner.connect(this.masterGain!);
 
-      source.start(now);
-      
-      // Cleanup
-      const duration = buffer.duration / tuningFactor;
-      source.stop(now + duration + 0.1);
-      
-      setTimeout(() => {
-        try {
-          source.disconnect();
-          output.disconnect();
-          panner.disconnect();
-        } catch (_) {}
-      }, (duration + 0.2) * 1000);
+      const buffer = type === 'TA' ? this.slapBuffer : this.openBuffer;
+      const presetFactors: Record<string, number> = { RUM: 1.0, RUMPI: 1.2, LE: 1.4 };
+      const tuningFactor = (presetFactors[this.settings.tuning] ?? 1.0) * this.settings.frequencyFactor;
+
+      if (buffer) {
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        source.playbackRate.setValueAtTime(tuningFactor, now);
+        source.connect(output);
+        output.gain.linearRampToValueAtTime(safeIntensity, now + 0.002);
+        source.start(now);
+        const duration = buffer.duration / tuningFactor;
+        source.stop(now + duration + 0.1);
+        this.scheduleCleanup([source, output, panner], duration + 0.2);
+      } else {
+        this.playSynthesizedHit(type, safeIntensity, tuningFactor, now, output, [output, panner]);
+      }
 
       return { type };
     } catch (e) {
-      console.error('Audio playback failed:', e);
+      console.error('Playback error:', e);
       return { type: 'INTERMEDIATE' };
     }
+  }
+
+  private playSynthesizedHit(
+    type: 'TUM' | 'TA' | 'INTERMEDIATE',
+    vel: number,
+    tuningFactor: number,
+    now: number,
+    output: GainNode,
+    nodes: AudioNode[]
+  ): void {
+    if (!this.ctx) return;
+    const isTa = type === 'TA';
+    const freq = (isTa ? 400 : 90) * tuningFactor;
+    const osc = this.ctx.createOscillator();
+    osc.type = isTa ? 'triangle' : 'sine';
+    osc.frequency.setValueAtTime(freq * 1.2, now);
+    osc.frequency.exponentialRampToValueAtTime(freq, now + 0.1);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(vel * SKIN_TENSION, now + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.001, now + (isTa ? 0.15 : 0.4));
+    osc.connect(g);
+    g.connect(output);
+    osc.start(now);
+    osc.stop(now + 0.5);
+    nodes.push(osc, g);
+    this.scheduleCleanup(nodes, 0.6);
+  }
+
+  private scheduleCleanup(nodes: AudioNode[], duration: number): void {
+    setTimeout(() => {
+      nodes.forEach(n => { try { n.disconnect(); } catch (_) {} });
+    }, duration * 1000);
   }
 }
