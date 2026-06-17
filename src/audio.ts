@@ -97,8 +97,8 @@ export class AtabaqueAudioEngine {
     const baseUrl = (import.meta as any).env.BASE_URL || '/';
     const normalizeUrl = (path: string) => `${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}${path.startsWith('/') ? path.slice(1) : path}`;
 
-    const slapUrl = normalizeUrl('sounds/slap.wav');
-    const openUrl = normalizeUrl('sounds/open.wav');
+    const slapUrl = normalizeUrl('./sounds/slap.wav');
+    const openUrl = normalizeUrl('./sounds/open.wav');
 
     console.log('[AudioEngine] Loading sounds from:', { slapUrl, openUrl });
 
