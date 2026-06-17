@@ -237,10 +237,10 @@ export class AtabaqueAudioEngine {
     return {
       t_stable: t,
       frequencies: [
-        this.lerp(280, 75, t) * tuningFactor,
-        this.lerp(420, 150, t) * tuningFactor,
-        this.lerp(680, 280, t) * tuningFactor,
-        this.lerp(950, 420, t) * tuningFactor
+        this.lerp(900, 90, t) * tuningFactor,
+        this.lerp(1400, 180, t) * tuningFactor,
+        this.lerp(2200, 320, t) * tuningFactor,
+        this.lerp(3200, 500, t) * tuningFactor
       ],
       amplitudes: (() => {
         const brightness = this.lerp(0.9, 0.3, t);
@@ -248,7 +248,7 @@ export class AtabaqueAudioEngine {
         return [body, brightness * 0.6, brightness * 0.35, brightness * 0.15];
       })(),
       envelope: {
-        attack: this.lerp(0.003, 0.008, t),
+        attack: this.lerp(0.001, 0.008, t),
         decay: this.lerp(0.12, 0.45, t) * (1 + press * 0.3),
         sustain: this.lerp(0.02, 0.08, t),
         release: this.lerp(0.08, 0.25, t)
@@ -290,7 +290,9 @@ export class AtabaqueAudioEngine {
           try {
             voice.output.gain.cancelScheduledValues(now);
             voice.output.gain.setTargetAtTime(0, now, 0.015);
-          } catch (_) { /* safe ignore */ }
+          } catch (_) {
+            /* safe ignore */
+          }
         }
       }
 
@@ -347,6 +349,7 @@ export class AtabaqueAudioEngine {
       this.cleanupVoices(now, type);
 
       const vel = Math.min(Math.max(safeIntensity, MIN_VELOCITY), 1.0);
+      const isSlap = type === 'TA' && vel > 0.82;
       const tuningFactor = this.resolveTuningFactor();
       const params = this.calculateParameters(safeDistance, safeIntensity, SKIN_TENSION, tuningFactor);
 
@@ -364,10 +367,24 @@ export class AtabaqueAudioEngine {
       const connectedNodes: AudioNode[] = [output, panner];
 
       // Oscillators
-      this.startOscillators(params, vel, now, output, connectedNodes);
+      this.startOscillators(
+        params,
+        vel,
+        isSlap,
+        now,
+        output,
+        connectedNodes
+      );
 
       // Impact noise
-      this.startImpactNoise(params, vel, now, output, connectedNodes);
+      this.startImpactNoise(
+        params,
+        vel,
+        isSlap,
+        now,
+        output,
+        connectedNodes
+      );
 
       // Master envelope
       this.applyMasterEnvelope(output, params, vel, now);
@@ -389,6 +406,7 @@ export class AtabaqueAudioEngine {
   private startOscillators(
     params: AudioParameters,
     vel: number,
+    isSlap: boolean,
     now: number,
     output: GainNode,
     connectedNodes: AudioNode[]
@@ -405,23 +423,49 @@ export class AtabaqueAudioEngine {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
 
-      osc.type = i === 0 ? 'sine' : i === 1 ? 'triangle' : 'sine';
-      osc.frequency.setValueAtTime(freq * (1 + (Math.random() - 0.5) * 0.005), now);
+      osc.type = i === 0 ? 'triangle' : 'sine';
+
+      const startFreq = freq * (1 + (Math.random() - 0.5) * 0.005);
+      osc.frequency.setValueAtTime(startFreq * 1.08, now);
+      osc.frequency.exponentialRampToValueAtTime(startFreq, now + 0.02);
       osc.detune.setValueAtTime(detune + (Math.random() - 0.5) * 4, now);
 
-      const amp = amplitudes[i] * vel * SKIN_TENSION;
+      const harmonicBoost =
+        isSlap && i >= 2
+          ? 1.8
+          : 1.0;
+
+      const amp =
+        amplitudes[i] *
+        harmonicBoost *
+        vel *
+        SKIN_TENSION;
+
+      const decayTime =
+        isSlap
+          ? decay * 0.55
+          : decay;
+
+      const releaseTime =
+        isSlap
+          ? release * 0.45
+          : release;
+
       gain.gain.setValueAtTime(0, now);
       gain.gain.linearRampToValueAtTime(amp, now + attack);
-      gain.gain.exponentialRampToValueAtTime(amp * sustain, now + attack + decay);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + attack + decay + release);
+      gain.gain.exponentialRampToValueAtTime(amp * sustain, now + attack + decayTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + attack + decayTime + releaseTime);
 
       osc.connect(gain);
       gain.connect(output);
       osc.start(now);
-      osc.stop(now + attack + decay + release + 0.1);
+      osc.stop(now + attack + decayTime + releaseTime + 0.1);
 
       osc.onended = () => {
-        try { osc.disconnect(); gain.disconnect(); } catch (_) {}
+        try {
+          osc.disconnect();
+          gain.disconnect();
+        } catch (_) {}
       };
 
       connectedNodes.push(osc, gain);
@@ -434,6 +478,7 @@ export class AtabaqueAudioEngine {
   private startImpactNoise(
     params: AudioParameters,
     vel: number,
+    isSlap: boolean,
     now: number,
     output: GainNode,
     connectedNodes: AudioNode[]
@@ -455,11 +500,25 @@ export class AtabaqueAudioEngine {
 
     const noiseFilter = this.ctx.createBiquadFilter();
     noiseFilter.type = 'bandpass';
-    noiseFilter.frequency.setValueAtTime(this.lerp(3000, 800, params.t_stable), now);
-    noiseFilter.Q.setValueAtTime(1.2, now);
+
+    const slapFreq =
+      isSlap
+        ? 4500
+        : this.lerp(3000, 800, params.t_stable);
+
+    noiseFilter.frequency.setValueAtTime(slapFreq, now);
+    noiseFilter.Q.setValueAtTime(isSlap ? 4.5 : 3.5, now);
 
     const noiseGain = this.ctx.createGain();
-    noiseGain.gain.setValueAtTime(vel * SKIN_TENSION * this.lerp(0.15, 0.05, params.t_stable), now);
+    const slapNoise =
+      isSlap
+        ? 0.70
+        : 0.35;
+
+    noiseGain.gain.setValueAtTime(
+      vel * SKIN_TENSION * this.lerp(slapNoise, 0.05, params.t_stable),
+      now
+    );
     noiseGain.gain.exponentialRampToValueAtTime(0.001, now + noiseLen);
 
     noiseSrc.connect(noiseFilter);
@@ -469,7 +528,11 @@ export class AtabaqueAudioEngine {
     noiseSrc.stop(now + noiseLen);
 
     noiseSrc.onended = () => {
-      try { noiseSrc.disconnect(); noiseFilter.disconnect(); noiseGain.disconnect(); } catch (_) {}
+      try {
+        noiseSrc.disconnect();
+        noiseFilter.disconnect();
+        noiseGain.disconnect();
+      } catch (_) {}
     };
 
     connectedNodes.push(noiseSrc, noiseFilter, noiseGain);
@@ -499,7 +562,9 @@ export class AtabaqueAudioEngine {
   private scheduleCleanup(nodes: AudioNode[], durationSec: number): void {
     setTimeout(() => {
       nodes.forEach(node => {
-        try { node.disconnect(); } catch (_) {}
+        try {
+          node.disconnect();
+        } catch (_) {}
       });
     }, durationSec * 1000);
   }
