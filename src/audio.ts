@@ -45,35 +45,32 @@ export class AtabaqueAudioEngine {
    * Safe to call multiple times — returns early if already initialized.
    */
   public async init(): Promise<void> {
-    if (this.initialized) return;
+    if (this.initialized && this.ctx?.state === 'running') return;
 
     try {
-      const AudioContextClass =
-        window.AudioContext || (window as any).webkitAudioContext;
-      this.ctx = new AudioContextClass({ latencyHint: 'interactive' });
-
-      console.log('[AudioEngine] AudioContext created, state:', this.ctx.state);
-
-      this.setupCompressor();
-      this.setupMasterGain();
-      this.setupReverbChain();
-
-      // Load sound files
-      await this.loadSounds();
+      if (!this.ctx) {
+        const AudioContextClass =
+          window.AudioContext || (window as any).webkitAudioContext;
+        this.ctx = new AudioContextClass({ latencyHint: 'interactive' });
+        
+        this.setupCompressor();
+        this.setupMasterGain();
+        this.setupReverbChain();
+        
+        // Load sound files once
+        await this.loadSounds();
+      }
 
       // FIX MOBILE: resume AudioContext se suspenso (iOS/Android)
+      // Em smartphones, o contexto só pode ser retomado dentro de um evento de clique
       if (this.ctx.state === 'suspended') {
-        console.log('[AudioEngine] AudioContext suspended, resuming...');
+        console.log('[AudioEngine] AudioContext suspended, attempting resume...');
         await this.ctx.resume();
-        console.log('[AudioEngine] AudioContext resumed, state:', this.ctx.state);
       }
 
       // FIX MOBILE: listener para re-resume se browser suspender depois
       this.ctx.onstatechange = () => {
         console.log('[AudioEngine] AudioContext state changed:', this.ctx?.state);
-        if (this.ctx?.state === 'suspended') {
-          this.ctx.resume();
-        }
       };
 
       this.initialized = true;
@@ -102,7 +99,6 @@ export class AtabaqueAudioEngine {
     };
 
     // slap.wav (TA) and open.wav (TUM)
-    // Note: open.wav will be added to the repository later by the user
     const [slap, open] = await Promise.all([
       loadBuffer('/sounds/slap.wav'),
       loadBuffer('/sounds/open.wav')
@@ -206,9 +202,13 @@ export class AtabaqueAudioEngine {
     this.settings.tuning = tuning;
   }
 
-  public resume(): void {
-    if (this.ctx?.state === 'suspended') {
-      this.ctx.resume();
+  public async resume(): Promise<void> {
+    if (this.ctx) {
+      if (this.ctx.state === 'suspended') {
+        await this.ctx.resume();
+      }
+    } else {
+      await this.init();
     }
   }
 
@@ -252,7 +252,8 @@ export class AtabaqueAudioEngine {
       }
       if (!this.ctx) return { type: 'INTERMEDIATE' };
 
-      if (this.ctx.state === 'suspended') {
+      // Re-resume context on every hit if it's not running (important for mobile)
+      if (this.ctx.state !== 'running') {
         await this.ctx.resume();
       }
 

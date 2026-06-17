@@ -303,38 +303,58 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#120d0a] text-stone-100 flex flex-col justify-between font-sans antialiased overflow-x-hidden">
       
-      {/* 1. Header Navigation Bar styled as a vintage professional audio synthesizer bezel */}
-      <header id="header-nav-main" className="border-b border-[#2d221a]/70 bg-[#1a1410]/90 backdrop-blur shrink-0 py-4 px-4 sm:px-6 shadow-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row gap-3 sm:gap-0 items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-600 to-amber-950 flex items-center justify-center shadow-[0_0_15px_rgba(249,115,22,0.3)] text-amber-50">
-              <span className="text-xl font-bold font-serif">A</span>
+      {/* 1. Modern & Elegant Header Navigation Bar */}
+      <header id="header-nav-main" className="border-b border-white/5 bg-black/40 backdrop-blur-xl shrink-0 py-3 px-4 sm:px-8 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-orange-600 to-amber-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative w-10 h-10 rounded-full bg-black flex items-center justify-center border border-white/10 text-orange-500">
+                <Music size={20} strokeWidth={2.5} />
+              </div>
             </div>
-            <div className="text-left">
-              <h1 className="text-lg sm:text-xl font-light tracking-tighter text-orange-500 uppercase">
-                Simulador <span className="font-bold text-white">Atabaque</span>
+            <div className="flex flex-col">
+              <h1 className="text-sm sm:text-base font-bold tracking-widest text-white uppercase flex items-center gap-2">
+                Couro <span className="text-orange-500 font-light">Ancestral</span>
+                <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-white/20"></span>
+                <span className="hidden sm:inline-block text-[10px] text-white/40 font-mono tracking-normal lowercase">v2.0</span>
               </h1>
-              <p className="text-[9px] text-white/40 uppercase tracking-[0.2em] font-semibold leading-none mt-1">
-                Motor de Síntese Realista Físico-Acústica
-              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[9px] text-white/30 uppercase tracking-[0.3em] font-medium">
+                  Atabaque Digital
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* QA-02: Rectified color class typo bg-orange-550 to bg-orange-500 */}
-            <div className="flex items-center gap-1.5 bg-[#251b14] border border-[#f27d26]/20 rounded-full px-3 py-1 text-[11px] font-semibold text-orange-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
-              Web Audio DSP
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center gap-4 mr-4 border-r border-white/5 pr-6">
+              <div className="flex flex-col items-end">
+                <span className="text-[9px] text-white/30 uppercase tracking-wider">Status</span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${audioActivated ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-white/20'}`}></span>
+                  <span className="text-[10px] font-mono text-white/60">{audioActivated ? 'ONLINE' : 'STANDBY'}</span>
+                </div>
+              </div>
             </div>
+            
             <button
               onClick={async () => {
                 const engine = await getAudioEngine();
-                engine.resume();
+                await engine.resume();
                 setAudioActivated(true);
               }}
-              className="text-xs bg-orange-600 hover:bg-orange-700 text-black font-extrabold px-4 py-1.5 rounded-full transition-all cursor-pointer shadow-[0_0_12px_rgba(242,125,38,0.4)] active:scale-[0.98]"
+              className={`group relative flex items-center gap-2 px-5 py-2 rounded-full transition-all duration-300 overflow-hidden ${
+                audioActivated 
+                ? 'bg-white/5 border border-white/10 text-white/70' 
+                : 'bg-orange-600 hover:bg-orange-500 text-white shadow-[0_0_20px_rgba(234,88,12,0.3)]'
+              }`}
             >
-              Conectar Saída
+              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+              <Play size={14} className={audioActivated ? 'text-emerald-500' : 'fill-current'} />
+              <span className="text-[11px] font-bold tracking-wider uppercase">
+                {audioActivated ? 'Sistema Ativo' : 'Ativar Áudio'}
+              </span>
             </button>
           </div>
         </div>
