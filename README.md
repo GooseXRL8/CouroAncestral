@@ -28,14 +28,6 @@ O simulador utiliza tecnologia de ponta para reproduzir não apenas o som, mas a
 
 ---
 
-## 📱 Design Minimalista e Moderno
-A nova interface foi projetada para ser elegante e funcional, focando no que realmente importa: a música.
-
-![Novo Header](public/docs/header_new.png)
-*Novo design minimalista com indicador de status em tempo real.*
-
----
-
 ## 🚀 Como Começar
 1. Abra o simulador no seu navegador (Desktop ou Mobile).
 2. Clique no botão **"ATIVAR ÁUDIO"** no topo da página.
@@ -49,4 +41,4 @@ A nova interface foi projetada para ser elegante e funcional, focando no que rea
 
 ---
 Feito com ❤️ para a preservação da cultura percussiva brasileira.
-**WEB AUDIO PROCEDURAL MODELLING ENGINE • 2026**
+**GANSO DEV • 2026**
