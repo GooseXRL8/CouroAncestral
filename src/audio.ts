@@ -235,7 +235,7 @@ export class AtabaqueAudioEngine {
       panner.connect(this.masterGain!);
 
       const buffer = type === 'TA' ? this.slapBuffer : this.openBuffer;
-      const presetFactors: Record<string, number> = { RUM: 1.0, RUMPI: 1.2, LE: 1.4 };
+      const presetFactors: Record<string, number> = { RUM: 0.7, RUMPI: 1.0, LE: 1.2 };
       const tuningFactor = (presetFactors[this.settings.tuning] ?? 1.0) * this.settings.frequencyFactor;
 
       if (buffer) {
